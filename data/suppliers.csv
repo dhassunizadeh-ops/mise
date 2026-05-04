@@ -1,0 +1,16 @@
+supplier_name,category,avg_delivery_days,quality_score,price_index,on_time_rate
+Quinta Verde,produce,2,8.5,0.92,0.95
+Mercado Lisboa,produce,1,7.8,0.88,0.97
+Horta Fresca,produce,3,9.1,1.05,0.91
+Carnes Premium,meat,3,9.3,1.2,0.93
+Talho Central,meat,2,8.0,1.1,0.96
+Bovino Select,meat,4,8.8,1.25,0.88
+Peixaria Atlantico,fish,1,9.5,1.15,0.94
+Mar Fresco,fish,2,8.7,1.08,0.9
+Costa Prata,fish,1,9.0,1.22,0.98
+Distribuidora Sol,dry_goods,5,7.5,0.85,0.92
+Armazem Lisboa,dry_goods,4,7.2,0.82,0.89
+Grao & Cereal,dry_goods,3,8.1,0.9,0.95
+Laticínios Serra,dairy,2,9.2,0.95,0.97
+Manteigaria Real,dairy,3,8.6,1.0,0.93
+Queijaria Norte,dairy,2,8.9,1.03,0.91
