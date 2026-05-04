@@ -514,19 +514,18 @@ if screen == "🏠 Restaurant Setup":
 
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        st.info(
-            f"""
-            **Menu for {cuisine_type}:**
-            """ + "\n".join(f"- {i}" for i in CUISINE_MENUS[cuisine_type]) + """
-
-            **Model features:**
-            - Temperature & rainfall
-            - Month & week of year
-            - Tourist season & holidays
-            - Local events, sales lag
-            """,
-            icon="🍽️",
-        )
+        with st.container(border=True):
+            st.markdown(f"**🍽️ Menu for {cuisine_type}:**")
+            for _item in CUISINE_MENUS[cuisine_type]:
+                st.markdown(f"- {_item}")
+            st.markdown("---")
+            st.markdown("**⚙️ Model Features**")
+            st.markdown(
+                "- Temperature & rainfall\n"
+                "- Month & week of year\n"
+                "- Tourist season & holidays\n"
+                "- Local events & sales lag"
+            )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -612,20 +611,22 @@ elif screen == "📊 Weekly Recommendations":
             st.session_state._scenario_aug, _ = call_api_or_fallback(_aug_payload)
         st.session_state._scenario_cuisine = _cuisine
 
-    # Header
+    # Page header
     st.markdown(f"""
     <div class="mise-header">
         <h1 style="margin:0; font-size:1.8rem;">
-            Week of {week} — Mise Forecast for {restaurant}
+            📊 Weekly Recommendations — {restaurant}
             <span class="mode-badge {badge_class}">{badge_label}</span>
         </h1>
     </div>
     """, unsafe_allow_html=True)
 
-    # Quick scenario buttons — prominent, at top of screen
-    st.markdown("**Quick Scenarios** — instantly reload conditions and refresh forecast:")
-    _qb1, _qb2, _qb3 = st.columns([2, 2, 3])
-    with _qb1:
+    # ── SECTION 1: SCENARIO EXPLORER ────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("Scenario Explorer — How conditions affect demand")
+
+    _esb1, _esb2 = st.columns(2)
+    with _esb1:
         if st.button("🌧️ Rainy January", use_container_width=True, key="btn_jan_top"):
             st.session_state.forecast_data = st.session_state._scenario_jan
             st.session_state.forecast_mode = "local"
@@ -635,7 +636,7 @@ elif screen == "📊 Weekly Recommendations":
                     "upcoming_events": False, "is_tourist_season": False, "forecast_month": 1,
                 })
             st.rerun()
-    with _qb2:
+    with _esb2:
         if st.button("☀️ August Peak Season", use_container_width=True, key="btn_aug_top"):
             st.session_state.forecast_data = st.session_state._scenario_aug
             st.session_state.forecast_mode = "local"
@@ -645,88 +646,8 @@ elif screen == "📊 Weekly Recommendations":
                     "upcoming_events": True, "is_tourist_season": True, "forecast_month": 8,
                 })
             st.rerun()
-    with _qb3:
-        st.caption("Salmon rises +119% from January to August. Pasta drops in summer heat.")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # Metrics row
-    flagged = sum(1 for r in recs if r.get("flag"))
-    m1, m2, m3 = st.columns(3)
-    with m1:
-        st.metric("Estimated Waste Saved", f"€{waste_saved_eur:.0f}", delta="vs. no-system baseline")
-    with m2:
-        st.metric("Model Accuracy", accuracy)
-    with m3:
-        st.metric("Items Flagged ⚠️", flagged, delta=f"of {len(recs)} items")
-
-    st.markdown("---")
-
-    # Savings callout
-    st.markdown(f"""
-    <div class="savings-box">
-        💚 &nbsp;<strong>Industry average waste: 8% of food purchased.</strong>
-        Without Mise: <strong>€{without_waste:.0f}</strong>.
-        &nbsp;|&nbsp;
-        <strong>With Mise: €{with_waste_val:.0f}</strong> (3% waste rate — ordered correctly).
-        &nbsp;|&nbsp;
-        You save <strong>€{waste_saved_eur:.0f}</strong> this week.
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # Main demand bar chart
-    items   = [r["menu_item"] for r in recs]
-    demands = [r["predicted_demand"] for r in recs]
-    colors  = ["#C62828" if r.get("flag") else MISE_GREEN for r in recs]
-
-    fig = go.Figure(go.Bar(
-        x=items, y=demands, marker_color=colors,
-        text=demands, textposition="outside",
-        hovertemplate="<b>%{x}</b><br>Predicted: %{y} units<extra></extra>",
-    ))
-    fig.update_layout(
-        title="Predicted Weekly Demand per Menu Item",
-        yaxis_title="Units", plot_bgcolor="white", paper_bgcolor="white",
-        margin=dict(t=50, b=10), height=390,
-    )
-    fig.update_xaxes(tickangle=-20)
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Order recommendations table
-    st.subheader("Weekly Order Recommendations")
-    rows = []
-    for r in recs:
-        rows.append({
-            "Menu Item":         ("⚠️ " if r.get("flag") else "") + r["menu_item"],
-            "Predicted Demand":  r["predicted_demand"],
-            "Recommended Order": r["recommended_order"],
-            "vs Last Week":      r["vs_last_week"],
-            "Confidence":        r["confidence"].title(),
-            "Conditions":        r.get("reasoning", ""),
-        })
-
-    def _hl(row):
-        return (
-            ["color:#C62828;font-weight:bold"] * len(row)
-            if str(row["Menu Item"]).startswith("⚠️") else [""] * len(row)
-        )
-
-    st.dataframe(
-        pd.DataFrame(rows).style.apply(_hl, axis=1),
-        use_container_width=True, hide_index=True,
-    )
-
-    # -----------------------------------------------------------------------
-    # Scenario Comparison — animated Plotly chart
-    # -----------------------------------------------------------------------
-    st.markdown("---")
-    st.subheader("Scenario Comparison — Animated View")
-    st.caption(
-        "Use the chart buttons below to animate between the two seasonal extremes. "
-        "Watch Grilled Salmon move dramatically between cold/rainy winter and warm August peak."
-    )
+    st.caption("Click to instantly compare seasonal extremes — watch how weather and season shift demand")
 
     _jan_recs = st.session_state._scenario_jan.get("recommendations", [])
     _aug_recs = st.session_state._scenario_aug.get("recommendations", [])
@@ -770,9 +691,9 @@ elif screen == "📊 Weekly Recommendations":
     )
     _sc_fig.update_layout(
         title=(
-            f"🌧️ Rainy January — waste without Mise €{_jan_without:.0f}, saved €{_jan_saved:.0f}"
+            f"🌧️ Rainy January — without Mise €{_jan_without:.0f}, saved €{_jan_saved:.0f}"
             f"   |   "
-            f"☀️ August Peak — waste without Mise €{_aug_without:.0f}, saved €{_aug_saved:.0f}"
+            f"☀️ August Peak — without Mise €{_aug_without:.0f}, saved €{_aug_saved:.0f}"
         ),
         yaxis_title="Weekly Units",
         plot_bgcolor="white", paper_bgcolor="white",
@@ -811,6 +732,98 @@ elif screen == "📊 Weekly Recommendations":
     )
     st.plotly_chart(_sc_fig, use_container_width=True)
 
+    st.markdown(
+        f'<p style="color:{MISE_GREEN}; font-weight:600; font-size:1rem; margin:0;">'
+        "Salmon rises +119% from January to August. "
+        "Pasta drops in summer heat. "
+        "The model learned this — we never told it.</p>",
+        unsafe_allow_html=True,
+    )
+
+    # ── SECTION 2: THIS WEEK'S FORECAST ─────────────────────────────────────
+    st.markdown("---")
+    st.subheader(f"This Week's Forecast — {restaurant}")
+
+    # Metrics row
+    flagged = sum(1 for r in recs if r.get("flag"))
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.metric("Estimated Waste Saved", f"€{waste_saved_eur:.0f}", delta="vs. no-system baseline")
+    with m2:
+        st.metric("Model Accuracy", accuracy)
+    with m3:
+        st.metric("Items Flagged ⚠️", flagged, delta=f"of {len(recs)} items")
+
+    # Savings callout
+    st.markdown(f"""
+    <div class="savings-box">
+        💚 &nbsp;<strong>Industry average waste: 8% of food purchased.</strong>
+        Without Mise: <strong>€{without_waste:.0f}</strong>.
+        &nbsp;|&nbsp;
+        <strong>With Mise: €{with_waste_val:.0f}</strong> (3% waste rate — ordered correctly).
+        &nbsp;|&nbsp;
+        You save <strong>€{waste_saved_eur:.0f}</strong> this week.
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Demand bar chart
+    items   = [r["menu_item"] for r in recs]
+    demands = [r["predicted_demand"] for r in recs]
+    colors  = ["#C62828" if r.get("flag") else MISE_GREEN for r in recs]
+
+    fig = go.Figure(go.Bar(
+        x=items, y=demands, marker_color=colors,
+        text=demands, textposition="outside",
+        hovertemplate="<b>%{x}</b><br>Predicted: %{y} units<extra></extra>",
+    ))
+    fig.update_layout(
+        title=f"Predicted Weekly Demand — Week of {week}",
+        yaxis_title="Units", plot_bgcolor="white", paper_bgcolor="white",
+        margin=dict(t=50, b=10), height=390,
+    )
+    fig.update_xaxes(tickangle=-20)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Weekly Order Recommendations table
+    st.subheader("Weekly Order Recommendations")
+    rows = []
+    for r in recs:
+        rows.append({
+            "Menu Item":         ("⚠️ " if r.get("flag") else "") + r["menu_item"],
+            "Predicted Demand":  r["predicted_demand"],
+            "Recommended Order": r["recommended_order"],
+            "vs Last Week":      r["vs_last_week"],
+            "Confidence":        r["confidence"].title(),
+            "Conditions":        r.get("reasoning", ""),
+        })
+
+    def _hl(row):
+        return (
+            ["color:#C62828;font-weight:bold"] * len(row)
+            if str(row["Menu Item"]).startswith("⚠️") else [""] * len(row)
+        )
+
+    st.dataframe(
+        pd.DataFrame(rows).style.apply(_hl, axis=1),
+        use_container_width=True, hide_index=True,
+    )
+
+    # Ingredient Order List
+    st.subheader("📋 Ingredient Order List")
+    st.caption("Quantities to order for the week ahead — sorted by volume.")
+    _order_rows = sorted(recs, key=lambda x: -x["recommended_order"])
+    st.dataframe(
+        pd.DataFrame([{
+            "Dish":       r["menu_item"],
+            "Order Qty":  r["recommended_order"],
+            "Unit":       "portions",
+            "Confidence": r["confidence"].title(),
+            "Note":       "⚠️ Unusual demand" if r.get("flag") else "Normal",
+        } for r in _order_rows]),
+        use_container_width=True, hide_index=True,
+    )
+
 # ---------------------------------------------------------------------------
 # SCREEN 3 — Accuracy Tracker
 # ---------------------------------------------------------------------------
@@ -837,12 +850,16 @@ elif screen == "🎯 Accuracy Tracker":
     _cuisine_acc  = st.session_state.form_data.get("cuisine", "Italian") if st.session_state.form_data else "Italian"
     _cuisine_menu = CUISINE_MENUS.get(_cuisine_acc, CUISINE_MENUS["Italian"])
 
-    # First dish in the cuisine drives the predicted-vs-actual chart
-    _first_dish       = _cuisine_menu[0]
-    _first_model_item = ITEM_TO_MODEL.get(_first_dish, _first_dish)
+    _selected_dish = st.selectbox(
+        "Select dish to inspect",
+        options=_cuisine_menu,
+        index=0,
+        key="accuracy_dish_selector",
+    )
+    _selected_model_item = ITEM_TO_MODEL.get(_selected_dish, _selected_dish)
 
     # Predicted vs Actual chart — uses the model item for data, titles it with the display name
-    st.subheader(f"{_first_dish} — Predicted vs Actual (Last 8 Weeks)")
+    st.subheader(f"{_selected_dish} — Predicted vs Actual (Last 8 Weeks)")
 
     idf_raw = None
     if artifact:
@@ -852,7 +869,7 @@ elif screen == "🎯 Accuracy Tracker":
                 os.path.join(root, "data", "sales_history.csv"), parse_dates=["date"]
             )
             idf_raw = (
-                raw[raw["menu_item"] == _first_model_item]
+                raw[raw["menu_item"] == _selected_model_item]
                 .sort_values("date").tail(56).reset_index(drop=True)
             )
         except Exception:
@@ -874,7 +891,7 @@ elif screen == "🎯 Accuracy Tracker":
                        for a, n in zip(actual_vals, np.random.normal(0, 15, 8))]
 
     if _cuisine_acc != "Italian":
-        st.caption(f"Showing model performance for the **{_first_model_item}** demand model (used for {_first_dish})")
+        st.caption(f"Showing model performance for the **{_selected_model_item}** demand model (used for {_selected_dish})")
 
     fig2 = go.Figure()
     fig2.add_trace(go.Scatter(
