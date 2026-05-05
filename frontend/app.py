@@ -454,10 +454,8 @@ if screen == "🏠 Restaurant Setup":
     with col1:
         st.subheader("Restaurant Details")
 
-        # Cuisine first — drives the auto-suggested restaurant name
         cuisine_type = st.selectbox("Cuisine Type", list(CUISINE_MENUS.keys()))
 
-        # Auto-suggest name when cuisine changes; keep field editable
         if st.session_state.get("_prev_cuisine_setup") != cuisine_type:
             st.session_state["_rest_name_val"] = CUISINE_DEFAULT_NAMES.get(
                 cuisine_type, "The Local Kitchen"
@@ -467,7 +465,6 @@ if screen == "🏠 Restaurant Setup":
             st.session_state["_rest_name_val"] = "Da Mario"
 
         restaurant_name = st.text_input("Restaurant Name", key="_rest_name_val")
-
         location = st.text_input("Location", value="Lisbon, Portugal")
         seating_capacity = st.slider("Seating Capacity", 10, 200, 60, 5)
 
@@ -477,27 +474,34 @@ if screen == "🏠 Restaurant Setup":
         )
 
         st.subheader("This Week's Conditions")
-        st.caption("These values become feature inputs to the LightGBM model.")
+
+        try:
+            import requests as req
+            weather_data = req.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude": 38.7,
+                    "longitude": -9.14,
+                    "daily": ["temperature_2m_max", "precipitation_sum"],
+                    "timezone": "Europe/Lisbon",
+                    "forecast_days": 7
+                },
+                timeout=5
+            ).json()
+            daily_temps = weather_data["daily"]["temperature_2m_max"]
+            daily_rain = weather_data["daily"]["precipitation_sum"]
+            avg_temp = sum(daily_temps) / 7
+            rainy_days = sum(1 for r in daily_rain if r > 2.0)
+            st.info(f"Lisbon weather auto-fetched — {avg_temp:.1f}C avg — {rainy_days} rainy days expected this week")
+        except Exception:
+            st.info("Lisbon, Portugal — weather fetched automatically by the model")
 
         c1, c2 = st.columns(2)
         with c1:
-            rainfall_expected = st.toggle("🌧️ Rain expected?", value=False)
-            upcoming_events   = st.toggle("🎉 Local event this weekend?", value=False)
-            is_holiday_week   = st.toggle("🏖️ Holiday week?", value=False)
+            upcoming_events = st.toggle("Local event this weekend?", value=False)
+            is_holiday_week = st.toggle("Holiday week?", value=False)
         with c2:
-            is_tourist_season = st.toggle("🌞 Tourist season?", value=False)
-            temperature_level = st.selectbox(
-                "🌡️ Expected temperature",
-                ["Cool (<15°C)", "Mild (15-24°C)", "Warm (>24°C)"],
-                index=1,
-            )
-
-        temp_map = {
-            "Cool (<15°C)": "Cool",
-            "Mild (15-24°C)": "Mild",
-            "Warm (>24°C)": "Warm",
-        }
-        temperature_key = temp_map[temperature_level]
+            is_tourist_season = st.toggle("Tourist season?", value=False)
 
         st.subheader("Forecast Month")
         current_month = date.today().month
@@ -515,11 +519,11 @@ if screen == "🏠 Restaurant Setup":
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)
         with st.container(border=True):
-            st.markdown(f"**🍽️ Menu for {cuisine_type}:**")
+            st.markdown(f"**Menu for {cuisine_type}:**")
             for _item in CUISINE_MENUS[cuisine_type]:
                 st.markdown(f"- {_item}")
             st.markdown("---")
-            st.markdown("**⚙️ Model Features**")
+            st.markdown("**Model Features**")
             st.markdown(
                 "- Temperature & rainfall\n"
                 "- Month & week of year\n"
@@ -529,14 +533,12 @@ if screen == "🏠 Restaurant Setup":
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    if st.button("🚀 Generate Weekly Forecast"):
+    if st.button("Generate Weekly Forecast"):
         payload = {
             "restaurant_name":   restaurant_name,
             "cuisine":           cuisine_type,
             "location":          location,
             "seating_capacity":  seating_capacity,
-            "rainfall_expected": rainfall_expected,
-            "temperature_level": temperature_key,
             "upcoming_events":   upcoming_events,
             "is_holiday_week":   is_holiday_week,
             "is_tourist_season": is_tourist_season,
@@ -544,26 +546,25 @@ if screen == "🏠 Restaurant Setup":
         }
         st.session_state.form_data = payload
 
-        with st.spinner("Running LightGBM forecast…"):
+        with st.spinner("Running LightGBM forecast..."):
             try:
                 result, mode = call_api_or_fallback(payload)
                 st.session_state.forecast_data = result
                 st.session_state.forecast_mode = mode
                 if mode == "local":
                     st.info(
-                        "Running in **local mode** — API unavailable, "
+                        "Running in local mode — API unavailable, "
                         "model loaded directly from ml/model.pkl.",
                         icon="🔌",
                     )
                 st.success(
-                    "Forecast ready — navigate to **📊 Weekly Recommendations**"
+                    "Forecast ready — navigate to Weekly Recommendations"
                 )
             except Exception as e:
                 st.error(
                     f"Forecast failed: {e}\n\n"
-                    "Ensure ml/model.pkl exists. Run `ml/train.py` if not."
+                    "Ensure ml/model.pkl exists. Run ml/train.py if not."
                 )
-
 
 # ---------------------------------------------------------------------------
 # SCREEN 2 — Weekly Recommendations

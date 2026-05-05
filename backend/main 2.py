@@ -12,6 +12,7 @@ from typing import Literal, Optional
 
 import numpy as np
 import pandas as pd
+import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -49,11 +50,43 @@ ITEM_PRICES = {
     "Grilled Chicken": 18.0,
 }
 
-# ---------------------------------------------------------------------------
-# Global state
-# ---------------------------------------------------------------------------
 artifact: dict | None = None
 sales_df: pd.DataFrame | None = None
+
+
+def get_lisbon_weather() -> dict:
+    try:
+        url = "https://api.open-meteo.com/v1/forecast"
+        params = {
+            "latitude": 38.7,
+            "longitude": -9.14,
+            "daily": ["temperature_2m_max", "precipitation_sum"],
+            "timezone": "Europe/Lisbon",
+            "forecast_days": 7
+        }
+        response = requests.get(url, params=params, timeout=5)
+        data = response.json()
+        daily_temps = data["daily"]["temperature_2m_max"]
+        daily_rainfall = data["daily"]["precipitation_sum"]
+        avg_temp = sum(daily_temps) / 7
+        total_rain = sum(daily_rainfall)
+        return {
+            "daily_temps": daily_temps,
+            "daily_rainfall": daily_rainfall,
+            "avg_temp": round(avg_temp, 1),
+            "total_rain": round(total_rain, 1),
+            "temperature_level": "Warm" if avg_temp > 24 else ("Cool" if avg_temp < 15 else "Mild"),
+            "rainy_days": sum(1 for r in daily_rainfall if r > 2.0)
+        }
+    except Exception:
+        return {
+            "daily_temps": [19.0] * 7,
+            "daily_rainfall": [1.0] * 7,
+            "avg_temp": 19.0,
+            "total_rain": 7.0,
+            "temperature_level": "Mild",
+            "rainy_days": 0
+        }
 
 
 @asynccontextmanager
@@ -79,21 +112,14 @@ app.add_middleware(
 )
 
 
-# ---------------------------------------------------------------------------
-# Schemas
-# ---------------------------------------------------------------------------
 class ForecastRequest(BaseModel):
     restaurant_name: str = "Da Mario"
     cuisine: str = "Italian"
     location: str = "Lisbon"
     seating_capacity: Optional[int] = 60
-    # Week conditions — mapped directly to feature vector values
-    rainfall_expected: bool = False
-    temperature_level: Literal["Cool", "Mild", "Warm"] = "Mild"
     upcoming_events: bool = False
     is_holiday_week: bool = False
     is_tourist_season: bool = False
-    # Optional month override for "what-if" forecasting (1-12, None = use real date)
     forecast_month: Optional[int] = None
 
 
@@ -115,9 +141,6 @@ class ForecastResponse(BaseModel):
     model_accuracy: str
 
 
-# ---------------------------------------------------------------------------
-# Feature construction
-# ---------------------------------------------------------------------------
 def build_feature_row(
     target_date: date,
     rainfall_mm: float,
@@ -150,29 +173,20 @@ def build_feature_row(
 
 
 def get_lag_values(item: str, target_date: date) -> tuple[float, float, float]:
-    """Pull lag values from the end of the training history."""
     if sales_df is None or artifact is None:
         return 20.0, 20.0, 20.0
-
     stats = artifact["item_stats"].get(item, {})
     last_35 = stats.get("last_35_sales", [])
-
     if not last_35:
         fallback = stats.get("last_7_avg", 20.0)
         return fallback, fallback, fallback
-
-    # Build a quick date → units dict
     sales_lookup = {
         pd.Timestamp(r["date"]).date(): r["units_sold"]
         for r in last_35
     }
-
-    # The training data ends Dec 31, 2025. Our forecast is ahead of that,
-    # so we use the last available data as proxy lags.
     last_date = max(sales_lookup.keys())
 
     def get_lag(n: int) -> float:
-        # Try to find date n days before target; fall back to n days before last_date
         candidates = [
             target_date - timedelta(days=n),
             last_date - timedelta(days=(n - 1)),
@@ -194,18 +208,11 @@ def get_rolling_avg(item: str) -> float:
 
 
 def build_reasoning(req: ForecastRequest, week_start: date) -> str:
-    """Describe the input conditions the model is predicting under."""
     parts = []
     if req.upcoming_events:
         parts.append("Local event")
     if req.is_holiday_week:
         parts.append("Holiday week")
-    if req.rainfall_expected:
-        parts.append("Rain expected")
-    if req.temperature_level == "Warm":
-        parts.append("Warm weather (28°C)")
-    elif req.temperature_level == "Cool":
-        parts.append("Cool weather (12°C)")
     if req.is_tourist_season:
         parts.append("Tourist season")
     if week_start.weekday() >= 5 or (week_start + timedelta(days=5)).weekday() >= 5:
@@ -221,9 +228,6 @@ def confidence_label(mape: float) -> str:
     return "low"
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -244,11 +248,11 @@ def forecast(req: ForecastRequest):
     days_until_monday = (7 - today.weekday()) % 7 or 7
     week_start = today + timedelta(days=days_until_monday)
     week_end = week_start + timedelta(days=6)
-    week_str = f"{week_start.strftime('%b %d')} – {week_end.strftime('%b %d, %Y')}"
+    week_str = f"{week_start.strftime('%b %d')} - {week_end.strftime('%b %d, %Y')}"
 
-    # Map user inputs → feature values (the ONLY place this mapping lives)
-    rainfall_mm = 15.0 if req.rainfall_expected else 1.0
-    temperature_c = TEMPERATURE_MAP[req.temperature_level]
+    weather = get_lisbon_weather()
+    daily_rainfall = weather["daily_rainfall"]
+    daily_temps = weather["daily_temps"]
     local_event = int(req.upcoming_events)
     is_tourist = int(req.is_tourist_season)
 
@@ -259,7 +263,6 @@ def forecast(req: ForecastRequest):
         model = models[item]
         stats = item_stats[item]
         mape = mape_scores.get(item, 15.0)
-
         lag_7, lag_14, lag_28 = get_lag_values(item, week_start)
         rolling_avg = get_rolling_avg(item)
 
@@ -267,11 +270,10 @@ def forecast(req: ForecastRequest):
         for d in range(7):
             target_date = week_start + timedelta(days=d)
             is_holiday = int(target_date in PORTUGUESE_HOLIDAYS or req.is_holiday_week)
-
             row = build_feature_row(
                 target_date=target_date,
-                rainfall_mm=rainfall_mm,
-                temperature_c=temperature_c,
+                rainfall_mm=daily_rainfall[d],
+                temperature_c=daily_temps[d],
                 local_event=local_event,
                 is_holiday=is_holiday,
                 is_tourist_season=is_tourist,
@@ -288,7 +290,6 @@ def forecast(req: ForecastRequest):
         predicted_demand = max(1, int(round(weekly_pred)))
         recommended_order = int(np.ceil(predicted_demand * 1.10))
 
-        # vs last week: compare to last 7 days in training history
         last_week_total = int(round(stats["last_7_avg"] * 7))
         if last_week_total > 0:
             pct = (predicted_demand - last_week_total) / last_week_total * 100
@@ -296,7 +297,6 @@ def forecast(req: ForecastRequest):
         else:
             vs_last_week = "N/A"
 
-        # Flag if >30% deviation from historical weekly mean
         historical_weekly = stats["mean"] * 7
         flag = abs(predicted_demand - historical_weekly) / historical_weekly > 0.30
 
