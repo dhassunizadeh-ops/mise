@@ -741,8 +741,12 @@ elif screen == "📊 Weekly Recommendations":
         unsafe_allow_html=True,
     )
 
-    # ── SECTION 2: THIS WEEK'S FORECAST ─────────────────────────────────────
+   # ── SECTION 2: THIS WEEK'S FORECAST ─────────────────────────────────────
     st.markdown("---")
+    ai_insights = data.get("ai_insights", "")
+    if ai_insights:
+        st.subheader("AI Chef Briefing")
+        st.info(ai_insights)
     st.subheader(f"This Week's Forecast — {restaurant}")
 
     # Metrics row

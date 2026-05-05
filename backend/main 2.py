@@ -2,7 +2,6 @@
 Mise FastAPI backend.
 All demand adjustments come from the trained LightGBM model.
 The backend maps user inputs → feature vectors → model predictions.
-No hardcoded percentage adjustments anywhere.
 """
 import os
 import pickle
@@ -13,9 +12,14 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 import requests
+import google.generativeai as genai
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+load_dotenv()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(ROOT, "ml", "model.pkl")
@@ -89,6 +93,36 @@ def get_lisbon_weather() -> dict:
         }
 
 
+def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str) -> str:
+    try:
+        model = genai.GenerativeModel("gemini-2.0-flash")
+
+        items_summary = "\n".join([
+            f"- {r.menu_item}: {r.predicted_demand} units predicted, {r.vs_last_week} vs last week, confidence: {r.confidence}, flagged: {r.flag}"
+            for r in recommendations
+        ])
+
+        prompt = f"""
+You are a smart restaurant operations assistant for {restaurant_name}.
+
+This week's weather: {weather['avg_temp']}C average, {weather['rainy_days']} rainy days expected.
+
+This week's demand forecast:
+{items_summary}
+
+Give a concise 3-4 sentence briefing for the restaurant manager. Include:
+- What to prioritise ordering this week and why
+- Any flagged items that need attention
+- One specific action to reduce waste this week
+
+Be direct and practical. No bullet points, just plain sentences.
+"""
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"AI insights unavailable: {str(e)}"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global artifact, sales_df
@@ -139,6 +173,7 @@ class ForecastResponse(BaseModel):
     recommendations: list[ItemForecast]
     total_estimated_waste_saved: str
     model_accuracy: str
+    ai_insights: str = ""
 
 
 def build_feature_row(
@@ -324,10 +359,13 @@ def forecast(req: ForecastRequest):
     )
     waste_saved = max(0.0, total_weekly_cost * (avg_naive - avg_mape) / 100)
 
+    ai_insights = get_ai_insights(recommendations, weather, req.restaurant_name)
+
     return ForecastResponse(
         restaurant=req.restaurant_name,
         week=week_str,
         recommendations=recommendations,
         total_estimated_waste_saved=f"€{waste_saved:.0f}",
         model_accuracy=f"MAPE: {avg_mape:.1f}%",
+        ai_insights=ai_insights,
     )
