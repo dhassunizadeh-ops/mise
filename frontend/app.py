@@ -1062,7 +1062,7 @@ elif screen == "🏢 Platform Overview":
             <span class="mode-badge mode-api" style="font-size:0.8rem; margin-left:12px;">Admin</span>
         </h1>
         <p style="margin:6px 0 0 0; opacity:0.9;">
-            This is what Mise looks like at scale — each restaurant that joins improves
+            Projected growth model - This is what Mise looks like at scale. Each restaurant that joins improves
             forecasts for similar venues through shared demand patterns.
         </p>
     </div>
@@ -1189,7 +1189,7 @@ elif screen == "🏢 Platform Overview":
     st.markdown("---")
     st.markdown(f"""
     <div class="savings-box">
-        📈 &nbsp;<strong>Platform trajectory:</strong>
+        📈 &nbsp;<strong> Platform trajectory:</strong>
         From €4,200 saved in January (15 restaurants) to €31,200 in June (47 restaurants).
         Each new restaurant adds ~€663/month in waste savings to the platform total.
         At 100 restaurants the platform saves an estimated <strong>€66,000/month</strong>
