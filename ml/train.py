@@ -64,12 +64,16 @@ def train_models(df: pd.DataFrame):
     for item in sorted(df["menu_item"].unique()):
         item_df = df[df["menu_item"] == item].copy().reset_index(drop=True)
 
-        split = int(len(item_df) * 0.80)
-        train = item_df.iloc[:split]
-        test = item_df.iloc[split:]
+        split_train = int(len(item_df) * 0.60)
+        split_val = int(len(item_df) * 0.80)
+        train = item_df.iloc[:split_train]
+        val = item_df.iloc[split_train:split_val]
+        test = item_df.iloc[split_val:]
 
         X_train = train[all_features]
         y_train = train["units_sold"]
+        X_val = val[all_features]
+        y_val = val["units_sold"]
         X_test = test[all_features]
         y_test = test["units_sold"]
 
@@ -91,7 +95,7 @@ def train_models(df: pd.DataFrame):
             model = lgb.LGBMRegressor(**params)
             model.fit(
                 X_train, y_train,
-                eval_set=[(X_test, y_test)],
+                eval_set=[(X_val, y_val)],
                 callbacks=[
                     lgb.early_stopping(60, verbose=False),
                     lgb.log_evaluation(period=-1),
