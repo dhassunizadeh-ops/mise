@@ -1,6 +1,7 @@
 """
 Trains one LightGBM model per menu item on the full feature set including
 weather, temperature, tourist season, and lag features.
+Also fits a KMeans cold-start model over synthetic restaurant profiles.
 """
 import os
 import pickle
@@ -8,6 +9,7 @@ import sys
 
 import numpy as np
 import pandas as pd
+from sklearn.cluster import KMeans
 from sklearn.metrics import mean_absolute_percentage_error
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,6 +21,19 @@ except ImportError:
     from sklearn.ensemble import GradientBoostingRegressor
     USE_LGBM = False
     print("LightGBM not found — falling back to GradientBoostingRegressor")
+
+CLUSTER_LABELS: dict[int, str] = {
+    0: "Small casual venue, low volume",
+    1: "Mid-size tourist-area restaurant",
+    2: "High-volume urban bistro",
+    3: "Large evening dining venue",
+    4: "Compact specialist restaurant",
+}
+
+# cuisine_encoded mapping used by both train and frontend
+CUISINE_ENC: dict[str, int] = {
+    "Italian": 0, "Portuguese": 1, "Mediterranean": 2, "Spanish": 3, "French": 4,
+}
 
 # All contextual features the model learns from
 FEATURES = [
@@ -138,7 +153,29 @@ def train_models(df: pd.DataFrame):
     return models, feature_importances, mape_scores, naive_mape_scores
 
 
-def save_artifacts(models, feature_importances, mape_scores, naive_mape_scores, df):
+def build_kmeans() -> KMeans:
+    """Generate 50 synthetic restaurant profiles and fit a 5-cluster KMeans model."""
+    rng = np.random.default_rng(42)
+    n = 50
+    cuisine_enc     = rng.integers(0, 5, n).astype(float)
+    avg_daily_vol   = rng.uniform(50, 400, n)
+    seating_cap     = rng.uniform(20, 120, n)
+    price_tier      = rng.integers(1, 4, n).astype(float)
+    X = np.column_stack([cuisine_enc, avg_daily_vol, seating_cap, price_tier])
+    km = KMeans(n_clusters=5, random_state=42, n_init=10)
+    km.fit(X)
+    return km
+
+
+def assign_cluster(kmeans: KMeans, cuisine: str, seating_capacity: int) -> tuple[int, str]:
+    c_enc   = float(CUISINE_ENC.get(cuisine, 0))
+    avg_vol = min(seating_capacity * 2.5, 400.0)
+    X = np.array([[c_enc, avg_vol, float(seating_capacity), 2.0]])
+    cluster_num = int(kmeans.predict(X)[0])
+    return cluster_num, CLUSTER_LABELS[cluster_num]
+
+
+def save_artifacts(models, feature_importances, mape_scores, naive_mape_scores, df, kmeans_model):
     os.makedirs("ml", exist_ok=True)
 
     item_stats = {}
@@ -162,6 +199,9 @@ def save_artifacts(models, feature_importances, mape_scores, naive_mape_scores, 
         "features": FEATURES + ["lag_7", "lag_14", "lag_28"],
         "base_features": FEATURES,
         "menu_items": sorted(models.keys()),
+        "kmeans_model": kmeans_model,
+        "cluster_labels": CLUSTER_LABELS,
+        "cuisine_enc": CUISINE_ENC,
     }
 
     with open("ml/model.pkl", "wb") as f:
@@ -170,6 +210,7 @@ def save_artifacts(models, feature_importances, mape_scores, naive_mape_scores, 
     print(f"Saved ml/model.pkl")
     print(f"Features: {FEATURES}")
     print(f"Items: {sorted(models.keys())}")
+    print(f"KMeans clusters: {kmeans_model.n_clusters}")
 
 
 if __name__ == "__main__":
@@ -183,5 +224,10 @@ if __name__ == "__main__":
     print(f"  {len(df)} rows after dropna")
 
     models, fi, mape_scores, naive_mape_scores = train_models(df)
-    save_artifacts(models, fi, mape_scores, naive_mape_scores, df)
+
+    print("Fitting KMeans cold-start model …")
+    kmeans_model = build_kmeans()
+    print(f"  5 clusters fitted on 50 synthetic restaurant profiles")
+
+    save_artifacts(models, fi, mape_scores, naive_mape_scores, df, kmeans_model)
     print("\nTraining complete.")

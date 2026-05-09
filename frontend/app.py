@@ -282,8 +282,18 @@ def run_forecast_locally(payload: dict) -> dict:
     ws = _week_start()
     week_str = f"{ws.strftime('%b %d')} – {(ws + timedelta(6)).strftime('%b %d, %Y')}"
 
-    rainfall_mm   = 15.0 if payload.get("rainfall_expected") else 1.0
-    temperature_c = TEMPERATURE_MAP.get(payload.get("temperature_level", "Mild"), 19.0)
+    # Use real Open-Meteo daily weather from session state when available
+    _daily_temps = st.session_state.get("weather_daily_temps")
+    _daily_rain  = st.session_state.get("weather_daily_rain")
+    _use_real_weather = (
+        _daily_temps is not None and _daily_rain is not None
+        and len(_daily_temps) >= 7 and len(_daily_rain) >= 7
+    )
+
+    # Fallback single values (used only if Open-Meteo fetch failed on Screen 1)
+    _rain_fallback = 15.0 if payload.get("rainfall_expected") else 1.0
+    _temp_fallback = TEMPERATURE_MAP.get(payload.get("temperature_level", "Mild"), 19.0)
+
     local_event   = int(payload.get("upcoming_events", False))
     is_tourist    = int(payload.get("is_tourist_season", False))
     is_hol_week   = bool(payload.get("is_holiday_week", False))
@@ -308,8 +318,10 @@ def run_forecast_locally(payload: dict) -> dict:
         for d in range(7):
             td = ws + timedelta(days=d)
             is_hol = int(td in PORTUGUESE_HOLIDAYS or is_hol_week)
+            rain_d = float(_daily_rain[d])  if _use_real_weather else _rain_fallback
+            temp_d = float(_daily_temps[d]) if _use_real_weather else _temp_fallback
             row = _feature_row(
-                td, rainfall_mm, temperature_c, local_event,
+                td, rain_d, temp_d, local_event,
                 is_hol, is_tourist, roll, lag_7, lag_14, lag_28,
                 month_override=month_ov,
             )
@@ -468,6 +480,36 @@ if screen == "🏠 Restaurant Setup":
         location = st.text_input("Location", value="Lisbon, Portugal")
         seating_capacity = st.slider("Seating Capacity", 10, 200, 60, 5)
 
+        try:
+            _km_artifact = _load_artifact()
+            _km = _km_artifact.get("kmeans_model")
+            _cluster_labels = _km_artifact.get("cluster_labels", {
+                0: "Small casual venue, low volume",
+                1: "Mid-size tourist-area restaurant",
+                2: "High-volume urban bistro",
+                3: "Large evening dining venue",
+                4: "Compact specialist restaurant",
+            })
+            _cuisine_enc_map = _km_artifact.get("cuisine_enc", {
+                "Italian": 0, "Portuguese": 1, "Mediterranean": 2, "Spanish": 3, "French": 4,
+            })
+            if _km is not None:
+                _c_enc   = float(_cuisine_enc_map.get(cuisine_type, 0))
+                _avg_vol = min(float(seating_capacity) * 2.5, 400.0)
+                _X_c = np.array([[_c_enc, _avg_vol, float(seating_capacity), 2.0]])
+                _cluster_num   = int(_km.predict(_X_c)[0])
+                _cluster_label = _cluster_labels.get(_cluster_num, "General restaurant")
+                st.markdown(
+                    f'<div style="background:#E8F5E9; border:1.5px solid #2E7D32; '
+                    f'border-radius:8px; padding:12px 16px; margin:8px 0;">'
+                    f'<b>🏷️ Restaurant Cluster: {_cluster_label}</b><br>'
+                    f'<span style="font-size:0.9rem; color:#555;">Your venue matches similar restaurants '
+                    f'in our network. Their demand patterns inform your starting forecast.</span></div>',
+                    unsafe_allow_html=True,
+                )
+        except Exception:
+            pass
+
         st.caption(
             f"Menu items for **{cuisine_type}**: "
             + ", ".join(CUISINE_MENUS[cuisine_type])
@@ -484,17 +526,26 @@ if screen == "🏠 Restaurant Setup":
                     "longitude": -9.14,
                     "daily": ["temperature_2m_max", "precipitation_sum"],
                     "timezone": "Europe/Lisbon",
-                    "forecast_days": 7
+                    "forecast_days": 7,
                 },
-                timeout=5
+                timeout=5,
             ).json()
             daily_temps = weather_data["daily"]["temperature_2m_max"]
-            daily_rain = weather_data["daily"]["precipitation_sum"]
-            avg_temp = sum(daily_temps) / 7
+            daily_rain  = weather_data["daily"]["precipitation_sum"]
+            avg_temp  = sum(daily_temps) / 7
             rainy_days = sum(1 for r in daily_rain if r > 2.0)
-            st.info(f"Lisbon weather auto-fetched — {avg_temp:.1f}C avg — {rainy_days} rainy days expected this week")
+            st.session_state["weather_daily_temps"] = daily_temps
+            st.session_state["weather_daily_rain"]  = daily_rain
+            _temp_label = "Warm" if avg_temp > 24 else ("Cool" if avg_temp < 15 else "Mild")
+            _rain_label = "Yes" if rainy_days > 0 else "No"
+            st.info(
+                f"🌤️ Auto-fetched: {avg_temp:.1f}°C avg | {rainy_days} rainy days | "
+                f"Rain: {_rain_label} | Temp: {_temp_label} → fed into model"
+            )
         except Exception:
-            st.info("Lisbon, Portugal — weather fetched automatically by the model")
+            st.session_state.pop("weather_daily_temps", None)
+            st.session_state.pop("weather_daily_rain", None)
+            st.info("Lisbon, Portugal — weather unavailable, using seasonal defaults")
 
         c1, c2 = st.columns(2)
         with c1:

@@ -4,7 +4,8 @@
       "Bash(pip install *)",
       "Bash(py --version)",
       "Bash(python3 -m pip --version)",
-      "PowerShell(Get-Command python, python3, py -ErrorAction SilentlyContinue)"
+      "PowerShell(Get-Command python, python3, py -ErrorAction SilentlyContinue)",
+      "Bash(uv run *)"
     ]
   }
 }
