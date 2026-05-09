@@ -1,7 +1,7 @@
 # Mise — Business Plan
 ### Advanced Topics in Machine Learning · 2758-T4
 ### Nova School of Business and Economics
-### Deliverable 1 — Person 1
+### Deliverable 1 — Riccardo Bertolini
 
 ---
 
@@ -16,7 +16,8 @@
 7. [Competitive Landscape & Defensibility](#7-competitive-landscape--defensibility)
 8. [AI Unit Economics & Financial Model](#8-ai-unit-economics--financial-model)
 9. [Risk Analysis](#9-risk-analysis)
-10. [Appendix A — GenAI Transparency Log](#appendix-a--genai-transparency-log)
+10. [AI Safety & Responsible Use](#10-ai-safety--responsible-use)
+11. [Appendix A — GenAI Transparency Log](#appendix-a--genai-transparency-log)
 
 ---
 
@@ -24,7 +25,7 @@
 
 **Mise** is a weekly AI-powered demand-forecasting service for independent restaurants. It connects to a restaurant's point-of-sale (POS) system, analyses historical sales alongside weather and local-event signals, and delivers a plain-English Monday-morning ordering brief — telling the owner what to buy before they waste money finding out the hard way.
 
-Independent restaurants operate on 3–5% net margins and make inventory decisions by instinct. Food waste costs a typical 40-seat restaurant **€600–2,000 per month**. Mise eliminates the majority of that waste for **€99/month** — a return-on-investment that makes the product close itself.
+Independent restaurants operate on 3–5% net margins and make inventory decisions by instinct. Food waste costs a typical 40-seat restaurant **€600–1,200 per month**. Mise eliminates the majority of that waste for **€99/month** — a return-on-investment that makes the product close itself.
 
 The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Bayesian cold-start module that gives new restaurants a credible prior from day one, and an anomaly-detection layer that prevents the forecast from chasing broken signals. The recommendation text is generated via the Claude API and delivered through a Streamlit dashboard.
 
@@ -33,7 +34,7 @@ The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Ba
 | Metric | Value |
 |---|---|
 | Price | €99 / restaurant / month |
-| Monthly waste saving per restaurant | €600–2,000 |
+| Monthly waste saving per restaurant | €600–1,200 |
 | Customer payback period | < 1 week |
 | Gross margin (steady state) | ~85% |
 | Break-even (restaurants) | 42 restaurants |
@@ -89,9 +90,9 @@ Every Monday morning, the restaurant owner opens a dashboard or receives an emai
 ### 3.2 Value Proposition by Stakeholder
 
 **Restaurant Owner (Economic Buyer)**
-- Saves €600–2,000/month on food waste
+- Saves €600–1,200/month on food waste
 - Pays €99/month
-- ROI: 6x–20x. Decision made in seconds.
+- ROI: 6x–12x. Decision made in seconds.
 
 **Head Chef / Kitchen Manager (User)**
 - Orders with confidence, not anxiety
@@ -182,7 +183,7 @@ POS System (Square / Lightspeed)
 Predicts next-week demand per menu item. Features:
 - Day-of-week, week-of-year, is_holiday
 - 7-day and 28-day rolling demand average
-- `rainfall_mm` (OpenWeatherMap free API)
+- `rainfall_mm` (OpenMeteo free API)
 - `local_event_flag` (Eventbrite API / manual calendar)
 - Item-level price changes
 - Lagged demand (t-1, t-7, t-28)
@@ -193,7 +194,7 @@ Evaluated against a naïve baseline (last-week repeat). Target MAPE < 15%.
 New restaurants have no history. On onboarding, the restaurant is clustered by cuisine type, seating capacity, and neighbourhood. A Bayesian prior is drawn from the cluster's aggregate demand distribution. As data accumulates over 8–12 weeks, the posterior shifts from cluster-level to restaurant-specific. This is the academically novel component — it solves a real commercial problem (churn risk in week 1) with a principled statistical approach.
 
 **③ Anomaly Detection**
-An Isolation Forest runs alongside the forecasting model. If a signal deviates by more than 2.5σ from the expected range, the anomaly is flagged in the dashboard and excluded from the next forecast cycle. This prevents the model from amplifying broken data (e.g., a POS outage, an unusually closed Monday).
+A threshold-based anomaly detector runs alongside the forecasting model. For each menu item, a rolling mean and standard deviation are computed over a 28-day window. If a signal deviates by more than 2.5σ from the rolling expected range, the anomaly is flagged in the dashboard and excluded from the next forecast cycle. This prevents the model from amplifying broken data (e.g., a POS outage, an unusually closed Monday).
 
 ### 5.3 Claude API Integration
 
@@ -304,7 +305,7 @@ Independent restaurant owners do not trust technology companies. They trust peop
 | **LightGBM inference** | Self-hosted; runs on shared VPS | ~€0.002 (negligible) |
 | **Claude API — input tokens** | 4 weekly calls × ~3,000 tokens = 12,000 tokens/month | ~€0.004 |
 | **Claude API — output tokens** | 4 calls × ~700 tokens = 2,800 tokens/month | ~€0.004 |
-| **OpenWeatherMap API** | Free tier; 1 call/day per restaurant | €0.00 |
+| **OpenMeteo API** | Free tier; 1 call/day per restaurant | €0.00 |
 | **Eventbrite API** | Free read-only access | €0.00 |
 | **Total AI variable cost** | | **~€0.008 / restaurant / month** |
 
@@ -405,7 +406,33 @@ Mise requires no external funding to reach profitability. The 60-day free pilot 
 
 ---
 
-## Appendix A — GenAI Transparency Log
+## 10. AI Safety & Responsible Use
+
+Mise is built on top of large language models and ML forecasting systems. This section documents the known risks associated with these components and the mitigations built into the product.
+
+### 10.1 Hallucination Risk
+
+Claude is used exclusively to generate the explanatory text layer of the weekly brief — it never produces the numeric forecast. The authoritative recommendation (item, quantity, direction) comes from the LightGBM model. If Claude's natural-language explanation contradicts the underlying numeric output by more than 10%, the text is discarded and a deterministic template fallback is used instead. This design ensures that a hallucinated explanation cannot lead to a harmful ordering decision.
+
+### 10.2 Overreliance
+
+A core UX principle of Mise is that the weekly brief is explicitly framed as a recommendation, not an instruction. The dashboard displays a confidence score and a rolling accuracy tracker for each menu item. Owners can override any recommendation in one click, and all overrides are logged and fed back into the model. This creates a human-in-the-loop workflow by design, not as an afterthought.
+
+### 10.3 Bias and Fairness
+
+LightGBM models trained on historical sales data can perpetuate past patterns, including those caused by temporary disruptions (e.g., a supplier issue, a one-off event that skewed demand). The threshold-based anomaly detector (Section 5.2 ③) filters out statistically anomalous training points before they enter the model. Additionally, the Bayesian cold-start module draws priors from a cuisine-type and neighbourhood cluster, not from a global average, reducing the risk of biased predictions for restaurants with atypical demand profiles.
+
+### 10.4 Privacy and Data Minimisation
+
+Mise processes POS sales data — item names, quantities sold, and timestamps. It does not process any personal data about end customers (no names, no payment details, no loyalty profiles). Raw sales data is stored in a managed PostgreSQL instance with encryption at rest. Cross-restaurant signals used for Bayesian clustering are anonymised and aggregated before any inference is made. The product is designed to be GDPR-compliant from the first line of code: no personal data is collected, and restaurant operators retain the right to export or delete their data at any time.
+
+### 10.5 Data Leakage Between Restaurants
+
+The cross-restaurant Bayesian prior is a statistical aggregate — no individual restaurant's sales figures are exposed to another. The prior is computed as a posterior distribution over a cuisine-type cluster; a restaurant owner cannot reverse-engineer a competitor's sales from the prior they receive. Cluster membership and cluster-level statistics are stored separately from per-restaurant data with row-level access controls in the database.
+
+---
+
+
 
 *This appendix documents all AI tool usage during the ideation, writing, and development of this business plan, in compliance with the course's academic integrity and GenAI disclosure requirements.*
 
@@ -493,7 +520,7 @@ No other AI tools (ChatGPT, Gemini, Copilot, etc.) were used in the preparation 
 
 ### A.6 Prototype / Code Assistance (Separate from Business Plan)
 
-**Date:** Week 2–3 (Person 2 and Person 3's work — documented here for completeness)
+**Date:** Week 2–3 (Dariusch Jose Hassunizadeh and Oliver Mourant's work — documented here for completeness)
 
 **Tool:** Claude (Sonnet)
 
@@ -516,7 +543,7 @@ The team believes this represents responsible, transparent AI augmentation — c
 
 ---
 
-*Document prepared by Person 1 — Business Plan Lead*  
+*Document prepared by Riccardo Bertolini — Business Plan Lead*  
 *Project: Mise — AI Demand Forecasting for Independent Restaurants*  
 *Course: 2758-T4 Advanced Topics in Machine Learning, Nova SBE*  
 *Date: May 2026*
