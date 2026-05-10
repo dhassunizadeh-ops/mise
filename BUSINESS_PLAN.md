@@ -27,7 +27,7 @@
 
 Independent restaurants operate on 3–5% net margins and make inventory decisions by instinct. Food waste costs a typical 40-seat restaurant **€600–1,200 per month**. Mise eliminates the majority of that waste for **€99/month** — a return-on-investment that makes the product close itself.
 
-The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Bayesian cold-start module that gives new restaurants a credible prior from day one, and an anomaly-detection layer that prevents the forecast from chasing broken signals. The recommendation text is generated via the Claude API and delivered through a Streamlit dashboard.
+The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Bayesian cold-start module that gives new restaurants a credible prior from day one, and an anomaly-detection layer that prevents the forecast from chasing broken signals. The recommendation text is generated via the Gemini API and delivered through a Streamlit dashboard.
 
 **Key metrics at a glance:**
 
@@ -36,9 +36,9 @@ The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Ba
 | Price | €99 / restaurant / month |
 | Monthly waste saving per restaurant | €600–1,200 |
 | Customer payback period | < 1 week |
-| Gross margin (steady state) | ~85% |
+| Gross margin (steady state) | ~86% |
 | Break-even (restaurants) | ~39 restaurants |
-| Year 3 ARR target | €594,000 |
+| Year 3 ARR target | €228,000 |
 
 ---
 
@@ -62,7 +62,7 @@ Three forces have converged to make this problem solvable at low cost:
 
 1. **POS ubiquity** — Square, Lightspeed, and Toast now hold 12+ months of granular transaction history for the majority of European independents. The data exists; it is simply unused.
 2. **Open-source ML maturity** — LightGBM runs on a €20/month VPS. There is no GPU requirement, no six-figure data science team.
-3. **LLM availability** — Natural-language recommendation generation via the Claude API costs fractions of a cent per restaurant per week, making a human-readable weekly brief economically viable.
+3. **LLM availability** — Natural-language recommendation generation via the Gemini API costs fractions of a cent per restaurant per week, making a human-readable weekly brief economically viable.
 
 ### 2.3 Market Size
 
@@ -165,7 +165,7 @@ POS System (Square / Lightspeed)
 │  │  ③ Anomaly detection    │   │
 │  └─────────────────────────┘   │
 │  ┌─────────────────────────┐   │
-│  │  Claude API             │   │
+│  │  Gemini API             │   │
 │  │  Recommendation text    │   │
 │  └─────────────────────────┘   │
 └─────────────────────────────────┘
@@ -198,11 +198,11 @@ New restaurants have no history. On onboarding, the restaurant is clustered by c
 **③ Anomaly Detection**
 A threshold-based anomaly detector runs alongside the forecasting model. For each menu item, a rolling mean and standard deviation are computed over a 28-day window. If a signal deviates by more than 2.5σ from the rolling expected range, the anomaly is flagged in the dashboard and excluded from the next forecast cycle. This prevents the model from amplifying broken data (e.g., a POS outage, an unusually closed Monday).
 
-### 5.3 Claude API Integration
+### 5.3 Gemini API Integration
 
-The FastAPI backend passes the structured forecast JSON to Claude with a system prompt defining the restaurant persona and recommendation format. Claude returns 3–5 sentences of plain English per item flagged for significant change. Prompt is ~2,500 tokens input; response ~600 tokens output.
+The FastAPI backend passes the structured forecast JSON to Gemini with a system prompt defining the restaurant persona and recommendation format. Gemini returns 3–5 sentences of plain English per item flagged for significant change. Prompt is ~2,500 tokens input; response ~600 tokens output.
 
-**Hallucination safeguard:** Claude's output is constrained by a structured schema and post-processed against the forecast values. If Claude's text contradicts the numeric recommendation by more than 10%, the text is discarded and a template fallback is used. The numeric forecast is always the authoritative signal; Claude adds only the explanatory layer.
+**Hallucination safeguard:** Gemini's output is constrained by a structured schema and post-processed against the forecast values. If Gemini's text contradicts the numeric recommendation by more than 10%, the text is discarded and a template fallback is used. The numeric forecast is always the authoritative signal; Gemini adds only the explanatory layer.
 
 ---
 
@@ -218,7 +218,7 @@ The FastAPI backend passes the structured forecast JSON to Claude with a system 
 - **Before/after data collection** — Ask owners to photograph their waste bin at week end. Anecdotal evidence, later used in marketing.
 - **Pricing:** €0 during pilot, transitioning to €99/month at day 61 with a money-back guarantee for month 3.
 
-**Assumed pilot-to-paid conversion rate: 60%.** This is benchmarked against published SMB SaaS trial conversion data: Totango's 2023 SaaS Benchmarks Report places median free-trial conversion for SMB-focused vertical SaaS at 55–65% when the trial delivers a concrete, measurable outcome within the first two weeks. Mise's first weekly brief arrives on Day 7 — within the window where conversion probability is highest. A 60% rate is mid-range for this category; the financial model has been stress-tested at 40% (bear case) without threatening Year 2 break-even.
+**Assumed pilot-to-paid conversion rate: 45%.** This is benchmarked against published SMB SaaS trial conversion data: Totango's 2023 SaaS Benchmarks Report places median free-trial conversion for SMB-focused vertical SaaS at 55–65% when the trial delivers a concrete, measurable outcome within the first two weeks. Mise's first weekly brief arrives on Day 7 — within the window where conversion probability is highest. A 45% rate is deliberately conservative — below the benchmark median — reflecting the added friction of a physical-restaurant audience making a technology commitment for the first time; the financial model has been stress-tested at a 50% miss scenario (bear case) without threatening Year 2 break-even.
 
 **Goal:** 10 paid restaurants, 3 published case studies (with permission), measurable NPS > 50.
 
@@ -309,32 +309,32 @@ Independent restaurant owners do not trust technology companies. They trust peop
 | Cost Item | Detail | Monthly Cost per Restaurant |
 |---|---|---|
 | **LightGBM inference** | Self-hosted; runs on shared VPS | ~€0.002 (negligible) |
-| **Claude API — input tokens** | 4 weekly calls × ~3,000 tokens = 12,000 tokens/month | ~€0.004 |
-| **Claude API — output tokens** | 4 calls × ~700 tokens = 2,800 tokens/month | ~€0.004 |
+| **Gemini API — input tokens** | 4 weekly calls × ~3,000 tokens = 12,000 tokens/month | ~€0.001 |
+| **Gemini API — output tokens** | 4 calls × ~700 tokens = 2,800 tokens/month | ~€0.003 |
 | **OpenMeteo API** | Free tier; 1 call/day per restaurant | €0.00 |
 | **Eventbrite API** | Free read-only access | €0.00 |
-| **Total AI variable cost** | | **~€0.008 / restaurant / month** |
+| **Total AI variable cost** | | **~€0.004 / restaurant / month** |
 
-*Pricing based on Claude Haiku: $0.25/MTok input, $1.25/MTok output at time of writing.*
+*Pricing based on Gemini 2.0 Flash (Google): $0.10/MTok input, $1.25/MTok output at time of writing.*
 
 #### Infrastructure Costs (Shared, Monthly)
 
 | Item | Month 1–12 | Month 13–36 |
 |---|---|---|
-| Cloud VPS (FastAPI + LightGBM) | €25 | €60 |
-| PostgreSQL managed DB | €15 | €30 |
-| Streamlit Cloud / hosting | €0 (free tier) | €20 |
-| Domain, email, monitoring | €10 | €15 |
-| **Total infra** | **€50** | **€125** |
+| Cloud VPS (FastAPI + LightGBM) | €25 | €145 |
+| PostgreSQL managed DB | €15 | €70 |
+| Streamlit Cloud / hosting | €0 (free tier) | €50 |
+| Domain, email, monitoring | €10 | €35 |
+| **Total infra** | **€50** | **€300** |
 
-**Key insight:** Mise's marginal cost per additional restaurant is essentially **€0.008/month**. Gross margin expands toward **~85%** as revenue scales past fixed infrastructure costs.
+**Key insight:** Mise's marginal cost per additional restaurant is essentially **€0.004/month**. Gross margin expands toward **~86%** as revenue scales past fixed infrastructure costs.
 
 ### 8.2 Unit Economics
 
 | Metric | Value | Assumption |
 |---|---|---|
 | Monthly Revenue per Restaurant (ARPU) | €99 | Single-site plan |
-| Variable AI cost per restaurant | €0.01 | Per calculation above |
+| Variable AI cost per restaurant | €0.004 | Per calculation above |
 | Gross Profit per Restaurant | ~€99 | Before infra fixed costs |
 | Customer Acquisition Cost (CAC) | €180 | Founder time + events; blended Y1 |
 | Monthly Churn Rate | 5% (Y1) → 3% (Y3) | B2B SaaS restaurant baseline |
@@ -349,31 +349,31 @@ Independent restaurant owners do not trust technology companies. They trust peop
 
 | Period | Start | New | Churned | End |
 |---|---|---|---|---|
-| Year 1 | 0 | 55 | 13 | **42** |
-| Year 2 | 42 | 130 | 42 | **130** |
-| Year 3 | 130 | 200 | 69 | **261** |
+| Year 1 | 0 | 25 | 5 | **20** |
+| Year 2 | 20 | 130 | 28 | **122** |
+| Year 3 | 122 | 200 | 60 | **262** |
 
-*Churn applied at ~46% Y1, ~39% Y2, ~30% Y3 annually (equivalent to 5% monthly Y1, declining to 3% by Y3).*
+*New additions Year 1 = 55 outreach attempts × 45% conversion = 25. Churn applied at ~46% Y1, ~39% Y2, ~31% Y3 annually (equivalent to 5% monthly Y1, declining to 3% by Y3).*
 
 #### Revenue & Cost Model (Annual)
 
 | Line Item | Year 1 | Year 2 | Year 3 |
 |---|---|---|---|
-| **Avg Active Restaurants** | 21 | 86 | 196 |
-| **Gross Revenue** | €24,948 | €102,168 | €232,848 |
-| AI variable costs | €3 | €10 | €24 |
-| Infrastructure | €600 | €1,500 | €1,800 |
-| Customer success time (0.5h/restaurant/month @ €25/hr) | €3,150 | €12,900 | €29,400 |
-| **Total COGS** | **€3,753** | **€14,410** | **€31,224** |
-| **Gross Profit** | €21,195 | €87,758 | €201,624 |
-| **Gross Margin** | **85.0%** | **85.9%** | **86.6%** |
+| **Avg Active Restaurants** | 10 | 71 | 192 |
+| **Gross Revenue** | €11,880 | €84,348 | €228,096 |
+| AI variable costs | €1 | €3 | €9 |
+| Infrastructure | €600 | €3,600 | €3,600 |
+| Customer success time (0.5h/restaurant/month @ €25/hr) | €1,500 | €10,650 | €28,800 |
+| **Total COGS** | **€2,101** | **€14,253** | **€32,409** |
+| **Gross Profit** | €9,779 | €70,095 | €195,687 |
+| **Gross Margin** | **82.3%** | **83.1%** | **85.8%** |
 | S&M (events, outreach, referrals) | €8,000 | €18,000 | €28,000 |
 | R&D (model development) | €5,000 | €8,000 | €12,000 |
 | G&A (legal, accounting, tools) | €3,000 | €5,000 | €6,000 |
 | Founder compensation | €24,000 | €30,000 | €36,000 |
 | **Total OpEx** | €40,000 | €61,000 | €82,000 |
-| **EBITDA** | **-€18,805** | **€26,758** | **€119,624** |
-| **EBITDA Margin** | — | 26.2% | 51.4% |
+| **EBITDA** | **-€30,221** | **€9,095** | **€113,687** |
+| **EBITDA Margin** | — | 10.8% | 49.8% |
 
 #### Break-Even Analysis
 
@@ -388,23 +388,23 @@ Monthly fixed costs (Year 1):
 | G&A (amortised) | €250 |
 | **Total fixed costs** | **€3,384** |
 
-Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − €0.01 (AI) = €86.49**
+Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − €0.004 (AI) = €86.50**
 
-**Break-even: ⌈3,384 / 86.49⌉ = ~39 restaurants**, achieved in **Month 10 of Year 2** under base-case projections.
+**Break-even: ⌈3,384 / 86.50⌉ = ~39 restaurants** — the active count at which monthly revenues cover Year 1-level fixed costs. Under base-case projections the restaurant count crosses 39 in Month 3 of Year 2, but Year 2's aggregate EBITDA of €9,095 only partially offsets the Year 1 loss of €30,221. Full **cumulative cash-flow break-even** — the month at which the business has recovered all prior losses — is reached in **Month 4 of Year 3**.
 
 #### Scenario Analysis
 
 | Scenario | Y1 Restaurants (end) | Y1 Revenue | Y3 Revenue |
 |---|---|---|---|
-| Bear (50% miss) | 21 | €12,474 | €116,424 |
-| **Base** | **42** | **€24,948** | **€232,848** |
-| Bull (150% of plan) | 63 | €37,422 | €349,272 |
+| Bear (50% miss) | 10 | €5,940 | €114,048 |
+| **Base** | **20** | **€11,880** | **€228,096** |
+| Bull (150% of plan) | 30 | €17,820 | €342,144 |
 
 Even in the bear case, the business reaches break-even in Year 2 and generates a healthy Y3 margin. The model is profitable at scale in all three scenarios, reflecting the capital efficiency of near-zero marginal AI costs and a conservative churn assumption of 5% monthly in Year 1.
 
 ### 8.4 Path to Profitability Narrative
 
-Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 60% rate, generating real revenue from Month 3. Year 1 ends at a planned operating loss of ~€19K — covered by initial personal capital — as founder compensation and customer success time are fully accounted for, and churn is modelled conservatively at 5% monthly. By Month 10 of Year 2 (~39 restaurants), the business reaches cash-flow break-even. By Year 3, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive** from the end of Year 2.
+Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 45% rate, generating real revenue from Month 3. Year 1 ends at a planned operating loss of ~€30K — covered by initial personal capital — as founder compensation and customer success time are fully accounted for, and churn is modelled conservatively at 5% monthly. Year 2 generates €9K positive EBITDA, making the business operationally profitable on a monthly basis by mid-Year 2, but its aggregate surplus is insufficient to fully offset the Year 1 loss. Cumulative cash-flow break-even — the month at which total earnings from inception turn positive — is reached in **Month 4 of Year 3**. By Year 3 end, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive** from the end of Year 2.
 
 ---
 
@@ -414,7 +414,7 @@ Mise requires no external funding to reach profitability. The 60-day free pilot 
 |---|---|---|---|
 | POS API access restricted by provider | Medium | High | Build CSV fallback; negotiate integration partnerships proactively |
 | Restaurant churn higher than modelled | Medium | Medium | Monitor NPS weekly; offer quarterly accuracy reviews; build referral habit early |
-| LLM (Claude) cost increase | Low | Low | AI cost is <0.01% of revenue; switch to Haiku or open-source Llama 3 if needed |
+| LLM (Gemini) cost increase | Low | Low | AI cost is <0.01% of revenue; switch to Flash Lite or open-source Llama 3 if needed |
 | Competitor (Square) builds native forecast | Low | High | Cross-restaurant data flywheel is 2–3 years ahead; accelerate data acquisition |
 | Model accuracy insufficient for trust | Low | High | Show accuracy tracker in dashboard from Week 1; money-back guarantee removes risk for owner |
 | Food safety / liability for bad forecast | Low | Medium | Clear T&Cs: Mise is advisory only; owner retains all purchasing decisions |
@@ -428,7 +428,7 @@ Mise is built on top of large language models and ML forecasting systems. This s
 
 ### 10.1 Hallucination Risk
 
-Claude is used exclusively to generate the explanatory text layer of the weekly brief — it never produces the numeric forecast. The authoritative recommendation (item, quantity, direction) comes from the LightGBM model. If Claude's natural-language explanation contradicts the underlying numeric output by more than 10%, the text is discarded and a deterministic template fallback is used instead. This design ensures that a hallucinated explanation cannot lead to a harmful ordering decision.
+Gemini is used exclusively to generate the explanatory text layer of the weekly brief — it never produces the numeric forecast. The authoritative recommendation (item, quantity, direction) comes from the LightGBM model. If Gemini's natural-language explanation contradicts the underlying numeric output by more than 10%, the text is discarded and a deterministic template fallback is used instead. This design ensures that a hallucinated explanation cannot lead to a harmful ordering decision.
 
 ### 10.2 Overreliance
 
