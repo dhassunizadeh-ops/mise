@@ -37,7 +37,7 @@ The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Ba
 | Monthly waste saving per restaurant | €600–1,200 |
 | Customer payback period | < 1 week |
 | Gross margin (steady state) | ~85% |
-| Break-even (restaurants) | 42 restaurants |
+| Break-even (restaurants) | ~39 restaurants |
 | Year 3 ARR target | €594,000 |
 
 ---
@@ -331,11 +331,11 @@ Independent restaurant owners do not trust technology companies. They trust peop
 | Variable AI cost per restaurant | €0.01 | Per calculation above |
 | Gross Profit per Restaurant | ~€99 | Before infra fixed costs |
 | Customer Acquisition Cost (CAC) | €180 | Founder time + events; blended Y1 |
-| Monthly Churn Rate | 5% (Y1) → 3% (Y3) | B2B SaaS restaurant baseline |
-| Average Customer Lifetime | 20 months (Y1) → 33 months (Y3) | 1 / churn rate |
-| Lifetime Value (LTV) | €1,980 (Y1) → €3,267 (Y3) | ARPU × lifetime |
-| **LTV : CAC ratio** | **11x (Y1) → 18x (Y3)** | Target > 3x |
-| Payback period | **< 2 months** | CAC / monthly gross profit |
+| Monthly Churn Rate | 3% (Y1) → 1.5% (Y3) | B2B SaaS restaurant baseline |
+| Average Customer Lifetime | 33 months (Y1) → 67 months (Y3) | 1 / churn rate |
+| Lifetime Value (LTV) | €3,267 (Y1) → €6,633 (Y3) | Contribution margin × lifetime |
+| **LTV : CAC ratio** | **18x (Y1) → 37x (Y3)** | Target > 3x |
+| Payback period | **< 3 months** | CAC / monthly contribution margin |
 
 ### 8.3 Three-Year Financial Projections
 
@@ -343,52 +343,62 @@ Independent restaurant owners do not trust technology companies. They trust peop
 
 | Period | Start | New | Churned | End |
 |---|---|---|---|---|
-| Year 1 | 0 | 55 | 6 | **49** |
-| Year 2 | 49 | 130 | 22 | **157** |
-| Year 3 | 157 | 200 | 57 | **300** |
+| Year 1 | 0 | 55 | 8 | **47** |
+| Year 2 | 47 | 130 | 27 | **150** |
+| Year 3 | 150 | 200 | 48 | **302** |
 
-*Churn applied at 5% Y1, 4% Y2, 3.5% Y3 of active base per year.*
+*Churn applied at ~30% Y1, ~26% Y2, ~21% Y3 annually (equivalent to 3% monthly Y1, declining to 1.5% by Y3).*
 
 #### Revenue & Cost Model (Annual)
 
 | Line Item | Year 1 | Year 2 | Year 3 |
 |---|---|---|---|
-| **Avg Active Restaurants** | 25 | 103 | 229 |
-| **Gross Revenue** | €29,700 | €122,364 | €272,052 |
+| **Avg Active Restaurants** | 25 | 100 | 226 |
+| **Gross Revenue** | €29,700 | €118,800 | €268,488 |
 | AI variable costs | €3 | €12 | €27 |
 | Infrastructure | €600 | €1,500 | €1,800 |
-| **Gross Profit** | €29,097 | €120,852 | €270,225 |
-| **Gross Margin** | 97.9% | 98.8% | 99.3% |
+| Customer success time (0.5h/restaurant/month @ €25/hr) | €3,750 | €15,000 | €33,900 |
+| **Total COGS** | **€4,353** | **€16,512** | **€35,727** |
+| **Gross Profit** | €25,347 | €102,288 | €232,761 |
+| **Gross Margin** | **85.3%** | **86.1%** | **86.7%** |
 | S&M (events, outreach, referrals) | €8,000 | €18,000 | €28,000 |
 | R&D (model development) | €5,000 | €8,000 | €12,000 |
 | G&A (legal, accounting, tools) | €3,000 | €5,000 | €6,000 |
-| **Total OpEx** | €16,000 | €31,000 | €46,000 |
-| **EBITDA** | **€13,097** | **€89,852** | **€224,225** |
-| **EBITDA Margin** | 44.1% | 73.4% | 82.4% |
+| Founder compensation | €24,000 | €30,000 | €36,000 |
+| **Total OpEx** | €40,000 | €61,000 | €82,000 |
+| **EBITDA** | **-€14,653** | **€41,288** | **€150,761** |
+| **EBITDA Margin** | — | 34.8% | 56.2% |
 
 #### Break-Even Analysis
 
-Fixed monthly costs (Year 1): **€50 infrastructure + ~€1,333 S&M/R&D/G&A amortised = ~€1,383/month**
+Monthly fixed costs (Year 1):
 
-Monthly revenue per restaurant: **€99**
+| Cost item | Monthly |
+|---|---|
+| Infrastructure | €50 |
+| Founder compensation | €2,000 |
+| S&M (amortised) | €667 |
+| R&D (amortised) | €417 |
+| G&A (amortised) | €250 |
+| **Total fixed costs** | **€3,384** |
 
-**Break-even: ⌈1,383 / 99⌉ = 14 restaurants** *(excluding founder compensation)*
+Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − €0.01 (AI) = €86.49**
 
-Including a founder living stipend of €2,000/month: **break-even at ~34 restaurants**, achieved in **Month 8** of Year 1 under base-case projections.
+**Break-even: ⌈3,384 / 86.49⌉ = ~39 restaurants**, achieved in **Month 10 of Year 2** under base-case projections.
 
 #### Scenario Analysis
 
 | Scenario | Y1 Restaurants | Y1 Revenue | Y3 Revenue |
 |---|---|---|---|
-| Bear (50% miss) | 24 | €14,256 | €136,026 |
-| **Base** | **49** | **€29,700** | **€272,052** |
-| Bull (150% of plan) | 74 | €52,668 | €594,000 |
+| Bear (50% miss) | 24 | €14,256 | €134,244 |
+| **Base** | **47** | **€29,700** | **€268,488** |
+| Bull (150% of plan) | 70 | €49,896 | €584,892 |
 
-Even in the bear case, the business reaches break-even by Year 2 and generates a healthy Y3 margin, reflecting the capital efficiency of the model.
+Even in the bear case, the business reaches break-even by Year 2 and generates a healthy Y3 margin. The model is profitable at scale in all three scenarios, reflecting the capital efficiency of near-zero marginal AI costs.
 
 ### 8.4 Path to Profitability Narrative
 
-Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 60% rate, generating real revenue from Month 3. By Month 8, the business covers all costs including founder stipend. By Year 2, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive from day one**.
+Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 60% rate, generating real revenue from Month 3. Year 1 ends at a planned operating loss of ~€14K — covered by initial personal capital — as founder compensation and customer success time are fully accounted for. By Month 10 of Year 2 (~39 restaurants), the business reaches cash-flow break-even. By Year 3, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive** from the end of Year 2.
 
 ---
 
