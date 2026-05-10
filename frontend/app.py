@@ -519,13 +519,29 @@ if screen == "🏠 Restaurant Setup":
 
         try:
             import requests as req
+    
+            # Geocode the location input
+            geo = req.get(
+                "https://geocoding-api.open-meteo.com/v1/search",
+                params={"name": location, "count": 1, "language": "en", "format": "json"},
+                timeout=5
+            ).json()
+            results = geo.get("results", [])
+            if results:
+                lat = results[0]["latitude"]
+                lng = results[0]["longitude"]
+                city_name = results[0]["name"]
+            else:
+                lat, lng, city_name = 38.7, -9.14, "Lisbon"
+
+            # Fetch weather for that location
             weather_data = req.get(
                 "https://api.open-meteo.com/v1/forecast",
                 params={
-                    "latitude": 38.7,
-                    "longitude": -9.14,
+                    "latitude": lat,
+                    "longitude": lng,
                     "daily": ["temperature_2m_max", "precipitation_sum"],
-                    "timezone": "Europe/Lisbon",
+                    "timezone": "auto",
                     "forecast_days": 7,
                 },
                 timeout=5,
@@ -677,27 +693,7 @@ elif screen == "📊 Weekly Recommendations":
     st.markdown("---")
     st.subheader("Scenario Explorer — How conditions affect demand")
 
-    _esb1, _esb2 = st.columns(2)
-    with _esb1:
-        if st.button("🌧️ Rainy January", use_container_width=True, key="btn_jan_top"):
-            st.session_state.forecast_data = st.session_state._scenario_jan
-            st.session_state.forecast_mode = "local"
-            if st.session_state.form_data:
-                st.session_state.form_data.update({
-                    "rainfall_expected": True, "temperature_level": "Cool",
-                    "upcoming_events": False, "is_tourist_season": False, "forecast_month": 1,
-                })
-            st.rerun()
-    with _esb2:
-        if st.button("☀️ August Peak Season", use_container_width=True, key="btn_aug_top"):
-            st.session_state.forecast_data = st.session_state._scenario_aug
-            st.session_state.forecast_mode = "local"
-            if st.session_state.form_data:
-                st.session_state.form_data.update({
-                    "rainfall_expected": False, "temperature_level": "Warm",
-                    "upcoming_events": True, "is_tourist_season": True, "forecast_month": 8,
-                })
-            st.rerun()
+    
 
     st.caption("Click to instantly compare seasonal extremes — watch how weather and season shift demand")
 
@@ -749,13 +745,13 @@ elif screen == "📊 Weekly Recommendations":
         ),
         yaxis_title="Weekly Units",
         plot_bgcolor="white", paper_bgcolor="white",
-        height=430, margin=dict(t=90, b=20),
+        height=480, margin=dict(t=160, b=20),
         xaxis=dict(tickangle=-20),
         updatemenus=[{
             "type": "buttons",
             "showactive": True,
             "x": 0.0, "xanchor": "left",
-            "y": 1.22, "yanchor": "top",
+            "y": 1.55, "yanchor": "top",
             "direction": "left",
             "buttons": [
                 {
@@ -865,20 +861,50 @@ elif screen == "📊 Weekly Recommendations":
         use_container_width=True, hide_index=True,
     )
 
-    # Ingredient Order List
-    st.subheader("📋 Ingredient Order List")
-    st.caption("Quantities to order for the week ahead — sorted by volume.")
-    _order_rows = sorted(recs, key=lambda x: -x["recommended_order"])
-    st.dataframe(
-        pd.DataFrame([{
-            "Dish":       r["menu_item"],
-            "Order Qty":  r["recommended_order"],
-            "Unit":       "portions",
-            "Confidence": r["confidence"].title(),
-            "Note":       "⚠️ Unusual demand" if r.get("flag") else "Normal",
-        } for r in _order_rows]),
-        use_container_width=True, hide_index=True,
-    )
+    st.subheader("Daily Demand Breakdown — Top 4 Items")
+    st.caption("How demand shifts day by day based on real weather forecasts.")
+
+    ws = date.today() + timedelta(days=(7 - date.today().weekday()) % 7 or 7)
+    day_labels = [(ws + timedelta(days=d)).strftime("%a %d") for d in range(7)]
+
+    d_temps = data.get("daily_temps", [])
+    d_rain = data.get("daily_rainfall", [])
+
+    def weather_emoji(temp, rain):
+        if rain > 5:
+            return f"🌧️ {temp:.0f}°C"
+        elif rain > 1:
+            return f"🌦️ {temp:.0f}°C"
+        elif temp > 24:
+            return f"☀️ {temp:.0f}°C"
+        elif temp > 18:
+            return f"⛅ {temp:.0f}°C"
+        else:
+            return f"🌥️ {temp:.0f}°C"
+
+    weather_row = {"Item": "Weather"}
+    for i, label in enumerate(day_labels):
+        if d_temps and d_rain and len(d_temps) > i:
+            weather_row[label] = weather_emoji(d_temps[i], d_rain[i])
+        else:
+            weather_row[label] = "-"
+
+    top_recs = recs[:4]
+    daily_rows = [weather_row]
+    for r in top_recs:
+        daily = r.get("daily_predictions", [])
+        if daily and len(daily) == 7:
+            row = {"Item": r["menu_item"]}
+            for i, label in enumerate(day_labels):
+                row[label] = daily[i]
+            daily_rows.append(row)
+
+    if daily_rows:
+        st.dataframe(
+            pd.DataFrame(daily_rows),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 # ---------------------------------------------------------------------------
 # SCREEN 3 — Accuracy Tracker

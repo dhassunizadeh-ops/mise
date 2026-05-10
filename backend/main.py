@@ -102,20 +102,27 @@ def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str) 
             for r in recommendations
         ])
 
+        daily_weather = ", ".join([
+            f"Day {i+1}: {weather['daily_temps'][i]:.1f}C, {weather['daily_rainfall'][i]:.1f}mm rain"
+            for i in range(7)
+        ])
+
         prompt = f"""
-You are a smart restaurant operations assistant for {restaurant_name}.
+You are an expert restaurant demand analyst for {restaurant_name}.
 
-This week's weather: {weather['avg_temp']}C average, {weather['rainy_days']} rainy days expected.
-
-This week's demand forecast:
+This week's forecast data:
 {items_summary}
 
-Give a concise 3-4 sentence briefing for the restaurant manager. Include:
-- What to prioritise ordering this week and why
-- Any flagged items that need attention
-- One specific action to reduce waste this week
+Real weather this week (day by day):
+{daily_weather}
 
-Be direct and practical. No bullet points, just plain sentences.
+Average: {weather['avg_temp']}C, {weather['rainy_days']} rainy days.
+
+Your job is to reason across ALL these signals simultaneously — weather patterns, demand changes vs last week, confidence levels, and flagged items — and produce a single confident recommendation paragraph.
+
+Do NOT just narrate the numbers. Cross-reference the signals and explain WHY the pattern is happening and WHAT specific action the restaurant should take. Include which specific days to front-load or reduce orders. The output should read like advice from an expert who understands both the data and the restaurant business — not a template.
+
+Be specific, be direct, maximum 4 sentences.
 """
         response = model.generate_content(prompt)
         return response.text
@@ -165,7 +172,7 @@ class ItemForecast(BaseModel):
     reasoning: str
     confidence: str
     flag: bool
-
+    daily_predictions: list[int] = []
 
 class ForecastResponse(BaseModel):
     restaurant: str
@@ -176,6 +183,8 @@ class ForecastResponse(BaseModel):
     with_mise_waste: float = 0.0
     model_accuracy: str
     ai_insights: str = ""
+    daily_temps: list[float] = []
+    daily_rainfall: list[float] = []
 
 
 def build_feature_row(
@@ -302,6 +311,7 @@ def forecast(req: ForecastRequest):
         rolling_avg = get_rolling_avg(item)
 
         weekly_pred = 0.0
+        daily_preds = []
         for d in range(7):
             target_date = week_start + timedelta(days=d)
             is_holiday = int(target_date in PORTUGUESE_HOLIDAYS or req.is_holiday_week)
@@ -319,8 +329,9 @@ def forecast(req: ForecastRequest):
                 month_override=req.forecast_month,
             )
             X = pd.DataFrame([row])[all_features]
-            daily_pred = float(model.predict(X)[0])
-            weekly_pred += max(0.0, daily_pred)
+            daily_pred = max(0.0, float(model.predict(X)[0]))
+            daily_preds.append(int(round(daily_pred)))
+            weekly_pred += daily_pred
 
         predicted_demand = max(1, int(round(weekly_pred)))
         recommended_order = int(np.ceil(predicted_demand * 1.10))
@@ -346,6 +357,7 @@ def forecast(req: ForecastRequest):
             reasoning=reasoning,
             confidence=conf,
             flag=flag,
+            daily_predictions=daily_preds,
         ))
 
     recommendations.sort(key=lambda x: (-int(x.flag), -x.predicted_demand))
@@ -369,4 +381,7 @@ def forecast(req: ForecastRequest):
         with_mise_waste=with_mise_waste,
         model_accuracy=f"MAPE: {avg_mape:.1f}%",
         ai_insights=ai_insights,
+        daily_temps=daily_temps,
+        daily_rainfall=daily_rainfall,
     )
+
