@@ -93,7 +93,7 @@ def get_lisbon_weather() -> dict:
         }
 
 
-def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str) -> str:
+def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str, owner_notes: str = "") -> str:
     try:
         model = genai.GenerativeModel("gemini-2.0-flash")
 
@@ -107,6 +107,8 @@ def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str) 
             for i in range(7)
         ])
 
+        notes_section = f"\nRestaurant owner notes: {owner_notes}" if owner_notes else ""
+
         prompt = f"""
 You are an expert restaurant demand analyst for {restaurant_name}.
 
@@ -116,9 +118,11 @@ This week's forecast data:
 Real weather this week (day by day):
 {daily_weather}
 
-Average: {weather['avg_temp']}C, {weather['rainy_days']} rainy days.
+Average: {weather['avg_temp']}C, {weather['rainy_days']} rainy days.{notes_section}
 
-Your job is to reason across ALL these signals simultaneously — weather patterns, demand changes vs last week, confidence levels, and flagged items — and produce a single confident recommendation paragraph.
+Your job is to reason across ALL these signals simultaneously — weather patterns, demand changes vs last week, confidence levels, flagged items, and any owner notes — and produce a single confident recommendation paragraph.
+
+If the owner has provided notes, factor them into your reasoning and adjust your recommendations accordingly. For example if they mention a private event on a specific day, account for that in your order recommendations.
 
 Do NOT just narrate the numbers. Cross-reference the signals and explain WHY the pattern is happening and WHAT specific action the restaurant should take. Include which specific days to front-load or reduce orders. The output should read like advice from an expert who understands both the data and the restaurant business — not a template.
 
@@ -157,6 +161,7 @@ class ForecastRequest(BaseModel):
     restaurant_name: str = "Da Mario"
     cuisine: str = "Italian"
     location: str = "Lisbon"
+    owner_notes: str = ""
     seating_capacity: Optional[int] = 60
     upcoming_events: bool = False
     is_holiday_week: bool = False
@@ -370,7 +375,7 @@ def forecast(req: ForecastRequest):
     with_mise_waste    = total_predicted_units * 0.03 * 2.50
     waste_saved        = without_mise_waste - with_mise_waste
 
-    ai_insights = get_ai_insights(recommendations, weather, req.restaurant_name)
+    ai_insights = get_ai_insights(recommendations, weather, req.restaurant_name, req.owner_notes)
 
     return ForecastResponse(
         restaurant=req.restaurant_name,

@@ -569,6 +569,11 @@ if screen == "🏠 Restaurant Setup":
             is_holiday_week = st.toggle("Holiday week?", value=False)
         with c2:
             is_tourist_season = st.toggle("Tourist season?", value=False)
+        owner_notes = st.text_area(
+            "Any notes about this week?",
+            placeholder="e.g. 'We have a private event Tuesday, ignore those numbers' or 'Staff shortage Friday'",
+            height=80
+        )
 
         st.subheader("Forecast Month")
         current_month = date.today().month
@@ -605,6 +610,7 @@ if screen == "🏠 Restaurant Setup":
             "restaurant_name":   restaurant_name,
             "cuisine":           cuisine_type,
             "location":          location,
+            "owner_notes":       owner_notes,
             "seating_capacity":  seating_capacity,
             "upcoming_events":   upcoming_events,
             "is_holiday_week":   is_holiday_week,
