@@ -92,6 +92,47 @@ def get_lisbon_weather() -> dict:
             "rainy_days": 0
         }
 
+def get_nearby_events(lat: float = 38.7, lng: float = -9.14) -> dict:
+    try:
+        api_key = os.getenv("PREDICTHQ_API_KEY")
+        response = requests.get(
+            "https://api.predicthq.com/v1/events/",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Accept": "application/json"
+            },
+            params={
+                "within": f"5km@{lat},{lng}",
+                "active.gte": date.today().isoformat(),
+                "active.lte": (date.today() + timedelta(days=7)).isoformat(),
+                "limit": 5,
+                "sort": "-rank",
+            },
+            timeout=5
+        )
+        data = response.json()
+        events = data.get("results", [])
+        if not events:
+            return {"event_count": 0, "events": [], "major_event": False}
+        
+        event_list = []
+        for e in events:
+            event_list.append({
+                "title": e.get("title", "Unknown event"),
+                "category": e.get("category", ""),
+                "rank": e.get("rank", 0),
+                "start": e.get("start", "")[:10],
+            })
+        
+        major = any(e["rank"] > 50 for e in event_list)
+        
+        return {
+            "event_count": len(event_list),
+            "events": event_list,
+            "major_event": major
+        }
+    except Exception as e:
+        return {"event_count": 0, "events": [], "major_event": False}
 
 def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str, owner_notes: str = "") -> str:
     try:
@@ -190,6 +231,7 @@ class ForecastResponse(BaseModel):
     ai_insights: str = ""
     daily_temps: list[float] = []
     daily_rainfall: list[float] = []
+    nearby_events: dict = {}
 
 
 def build_feature_row(
@@ -303,7 +345,8 @@ def forecast(req: ForecastRequest):
     weather = get_lisbon_weather()
     daily_rainfall = weather["daily_rainfall"]
     daily_temps = weather["daily_temps"]
-    local_event = int(req.upcoming_events)
+    nearby_events = get_nearby_events()
+    local_event = int(req.upcoming_events or nearby_events["major_event"])
     is_tourist = int(req.is_tourist_season)
 
     recommendations = []
@@ -384,6 +427,7 @@ def forecast(req: ForecastRequest):
         total_estimated_waste_saved=f"€{waste_saved:.0f}",
         without_mise_waste=without_mise_waste,
         with_mise_waste=with_mise_waste,
+        nearby_events=nearby_events,
         model_accuracy=f"MAPE: {avg_mape:.1f}%",
         ai_insights=ai_insights,
         daily_temps=daily_temps,

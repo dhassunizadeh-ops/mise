@@ -558,6 +558,11 @@ if screen == "🏠 Restaurant Setup":
                 f"🌤️ Auto-fetched: {avg_temp:.1f}°C avg | {rainy_days} rainy days | "
                 f"Rain: {_rain_label} | Temp: {_temp_label} → fed into model"
             )
+            # Show nearby events
+            _nearby = st.session_state.get("nearby_events", {})
+            if _nearby and _nearby.get("event_count", 0) > 0:
+                _event_names = ", ".join([e["title"] for e in _nearby["events"][:3]])
+                st.warning(f"📅 {_nearby['event_count']} events nearby this week: {_event_names}")
         except Exception:
             st.session_state.pop("weather_daily_temps", None)
             st.session_state.pop("weather_daily_rain", None)
@@ -624,6 +629,7 @@ if screen == "🏠 Restaurant Setup":
                 result, mode = call_api_or_fallback(payload)
                 st.session_state.forecast_data = result
                 st.session_state.forecast_mode = mode
+                st.session_state["nearby_events"] = result.get("nearby_events", {})
                 if mode == "local":
                     st.info(
                         "Running in local mode — API unavailable, "
