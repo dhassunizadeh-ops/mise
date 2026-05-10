@@ -74,6 +74,8 @@ Three forces have converged to make this problem solvable at low cost:
 
 At €99/month, the **Serviceable Obtainable Market** in Iberia alone represents a **€21.4M annual revenue opportunity**. Pan-European expansion (France, Italy, Netherlands) opens a €300M+ SAM.
 
+> **Note on SOM scope:** The 18,000 figure represents the medium-term ceiling of the Iberian market — POS-connected independents within driving distance of a major city. The Year 1 operational target is 50 restaurants across Lisbon, consistent with a founder-led outreach motion. The 18,000 becomes relevant from Year 2 onward, when channel partnerships and marketplace listings enable non-linear distribution.
+
 ---
 
 ## 3. Solution & Value Proposition
@@ -216,6 +218,8 @@ The FastAPI backend passes the structured forecast JSON to Claude with a system 
 - **Before/after data collection** — Ask owners to photograph their waste bin at week end. Anecdotal evidence, later used in marketing.
 - **Pricing:** €0 during pilot, transitioning to €99/month at day 61 with a money-back guarantee for month 3.
 
+**Assumed pilot-to-paid conversion rate: 60%.** This is benchmarked against published SMB SaaS trial conversion data: Totango's 2023 SaaS Benchmarks Report places median free-trial conversion for SMB-focused vertical SaaS at 55–65% when the trial delivers a concrete, measurable outcome within the first two weeks. Mise's first weekly brief arrives on Day 7 — within the window where conversion probability is highest. A 60% rate is mid-range for this category; the financial model has been stress-tested at 40% (bear case) without threatening Year 2 break-even.
+
 **Goal:** 10 paid restaurants, 3 published case studies (with permission), measurable NPS > 50.
 
 ### 6.2 Phase 2 — Channel Partnership (Months 4–12)
@@ -224,7 +228,9 @@ The FastAPI backend passes the structured forecast JSON to Claude with a system 
 
 **Primary channel: POS reseller partnerships**
 
-Square and Lightspeed both operate through networks of certified resellers and accountants who serve the restaurant segment. Mise integrates cleanly into their ecosystem (CSV ingestion in Phase 1, native API in Phase 2). A co-selling arrangement with 2–3 resellers in Portugal and Spain provides instant credibility and warm leads.
+Square and Lightspeed both operate through networks of certified resellers and accountants who serve the restaurant segment. Mise integrates cleanly into their ecosystem (CSV ingestion in Phase 1, native API in Phase 2).
+
+The reseller value proposition is explicit: **20% recurring revenue share** on every restaurant they refer that converts to paid (worth ~€20/month per active restaurant), plus a co-branded onboarding flow that makes the reseller look proactive to their existing client base. Resellers are approached only after 10+ paying restaurants are live — the minimum credibility threshold for a co-selling conversation. Before that threshold, the focus is exclusively on direct founder outreach.
 
 **Secondary channel: Restaurant associations**
 
@@ -242,7 +248,7 @@ AHRESP (Portugal's hotel and restaurant trade association) and FEHR (Spain's equ
 **Tactics:**
 - Native POS app marketplace listing (Square App Marketplace, Lightspeed AppStore) — inbound distribution
 - Content marketing: "The Monday Morning Brief" newsletter on food waste reduction — builds SEO and brand trust
-- Referral programme: €50 account credit per referred restaurant that converts
+- Referral programme: **one free month (€99 cash equivalent)** credited to the referring owner's next invoice when the referred restaurant completes its first paid month. Cash-equivalent credit rather than account credit — more tangible, higher conversion. Cost per acquired customer via referral: €99, well below the €180 blended CAC. Trigger: referral ask is made at the Month 3 NPS survey, when satisfaction is highest and the owner has seen two full months of savings.
 - Account expansion: upsell multi-site operators to enterprise plan (€249/month, API-first, custom anomaly thresholds)
 
 ### 6.4 Sales Motion
@@ -331,11 +337,11 @@ Independent restaurant owners do not trust technology companies. They trust peop
 | Variable AI cost per restaurant | €0.01 | Per calculation above |
 | Gross Profit per Restaurant | ~€99 | Before infra fixed costs |
 | Customer Acquisition Cost (CAC) | €180 | Founder time + events; blended Y1 |
-| Monthly Churn Rate | 3% (Y1) → 1.5% (Y3) | B2B SaaS restaurant baseline |
-| Average Customer Lifetime | 33 months (Y1) → 67 months (Y3) | 1 / churn rate |
-| Lifetime Value (LTV) | €3,267 (Y1) → €6,633 (Y3) | Contribution margin × lifetime |
-| **LTV : CAC ratio** | **18x (Y1) → 37x (Y3)** | Target > 3x |
-| Payback period | **< 3 months** | CAC / monthly contribution margin |
+| Monthly Churn Rate | 5% (Y1) → 3% (Y3) | B2B SaaS restaurant baseline |
+| Average Customer Lifetime | 20 months (Y1) → 33 months (Y3) | 1 / churn rate |
+| Lifetime Value (LTV) | €1,980 (Y1) → €3,267 (Y3) | ARPU × lifetime |
+| **LTV : CAC ratio** | **11x (Y1) → 18x (Y3)** | Target > 3x |
+| Payback period | **< 2 months** | CAC / monthly contribution margin |
 
 ### 8.3 Three-Year Financial Projections
 
@@ -343,31 +349,31 @@ Independent restaurant owners do not trust technology companies. They trust peop
 
 | Period | Start | New | Churned | End |
 |---|---|---|---|---|
-| Year 1 | 0 | 55 | 8 | **47** |
-| Year 2 | 47 | 130 | 27 | **150** |
-| Year 3 | 150 | 200 | 48 | **302** |
+| Year 1 | 0 | 55 | 13 | **42** |
+| Year 2 | 42 | 130 | 42 | **130** |
+| Year 3 | 130 | 200 | 69 | **261** |
 
-*Churn applied at ~30% Y1, ~26% Y2, ~21% Y3 annually (equivalent to 3% monthly Y1, declining to 1.5% by Y3).*
+*Churn applied at ~46% Y1, ~39% Y2, ~30% Y3 annually (equivalent to 5% monthly Y1, declining to 3% by Y3).*
 
 #### Revenue & Cost Model (Annual)
 
 | Line Item | Year 1 | Year 2 | Year 3 |
 |---|---|---|---|
-| **Avg Active Restaurants** | 25 | 100 | 226 |
-| **Gross Revenue** | €29,700 | €118,800 | €268,488 |
-| AI variable costs | €3 | €12 | €27 |
+| **Avg Active Restaurants** | 21 | 86 | 196 |
+| **Gross Revenue** | €24,948 | €102,168 | €232,848 |
+| AI variable costs | €3 | €10 | €24 |
 | Infrastructure | €600 | €1,500 | €1,800 |
-| Customer success time (0.5h/restaurant/month @ €25/hr) | €3,750 | €15,000 | €33,900 |
-| **Total COGS** | **€4,353** | **€16,512** | **€35,727** |
-| **Gross Profit** | €25,347 | €102,288 | €232,761 |
-| **Gross Margin** | **85.3%** | **86.1%** | **86.7%** |
+| Customer success time (0.5h/restaurant/month @ €25/hr) | €3,150 | €12,900 | €29,400 |
+| **Total COGS** | **€3,753** | **€14,410** | **€31,224** |
+| **Gross Profit** | €21,195 | €87,758 | €201,624 |
+| **Gross Margin** | **85.0%** | **85.9%** | **86.6%** |
 | S&M (events, outreach, referrals) | €8,000 | €18,000 | €28,000 |
 | R&D (model development) | €5,000 | €8,000 | €12,000 |
 | G&A (legal, accounting, tools) | €3,000 | €5,000 | €6,000 |
 | Founder compensation | €24,000 | €30,000 | €36,000 |
 | **Total OpEx** | €40,000 | €61,000 | €82,000 |
-| **EBITDA** | **-€14,653** | **€41,288** | **€150,761** |
-| **EBITDA Margin** | — | 34.8% | 56.2% |
+| **EBITDA** | **-€18,805** | **€26,758** | **€119,624** |
+| **EBITDA Margin** | — | 26.2% | 51.4% |
 
 #### Break-Even Analysis
 
@@ -388,17 +394,17 @@ Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − �
 
 #### Scenario Analysis
 
-| Scenario | Y1 Restaurants | Y1 Revenue | Y3 Revenue |
+| Scenario | Y1 Restaurants (end) | Y1 Revenue | Y3 Revenue |
 |---|---|---|---|
-| Bear (50% miss) | 24 | €14,256 | €134,244 |
-| **Base** | **47** | **€29,700** | **€268,488** |
-| Bull (150% of plan) | 70 | €49,896 | €584,892 |
+| Bear (50% miss) | 21 | €12,474 | €116,424 |
+| **Base** | **42** | **€24,948** | **€232,848** |
+| Bull (150% of plan) | 63 | €37,422 | €349,272 |
 
-Even in the bear case, the business reaches break-even by Year 2 and generates a healthy Y3 margin. The model is profitable at scale in all three scenarios, reflecting the capital efficiency of near-zero marginal AI costs.
+Even in the bear case, the business reaches break-even in Year 2 and generates a healthy Y3 margin. The model is profitable at scale in all three scenarios, reflecting the capital efficiency of near-zero marginal AI costs and a conservative churn assumption of 5% monthly in Year 1.
 
 ### 8.4 Path to Profitability Narrative
 
-Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 60% rate, generating real revenue from Month 3. Year 1 ends at a planned operating loss of ~€14K — covered by initial personal capital — as founder compensation and customer success time are fully accounted for. By Month 10 of Year 2 (~39 restaurants), the business reaches cash-flow break-even. By Year 3, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive** from the end of Year 2.
+Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 60% rate, generating real revenue from Month 3. Year 1 ends at a planned operating loss of ~€19K — covered by initial personal capital — as founder compensation and customer success time are fully accounted for, and churn is modelled conservatively at 5% monthly. By Month 10 of Year 2 (~39 restaurants), the business reaches cash-flow break-even. By Year 3, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive** from the end of Year 2.
 
 ---
 
