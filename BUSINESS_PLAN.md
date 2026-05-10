@@ -1,7 +1,7 @@
 # Mise — Business Plan
 ### Advanced Topics in Machine Learning · 2758-T4
 ### Nova School of Business and Economics
-### Deliverable 1 — Riccardo Bertolini
+### Deliverable 1 — Riccardo Bertolini, Oliver Mourant, Dariusch Hassunizadeh
 
 ---
 
@@ -459,7 +459,7 @@ The cross-restaurant Bayesian prior is a statistical aggregate — no individual
 | Tool | Version | Usage Phase | Role |
 |---|---|---|---|
 | **Claude (Anthropic)** | claude-sonnet-4-6 | Ideation, writing, editing | Primary authoring assistant |
-| **Claude (Anthropic)** | claude-haiku-4-5 | Financial modelling | Arithmetic checking and scenario generation |
+| **Claude (Anthropic)** | Gemini 2.0 Flash | Financial modelling | Arithmetic checking and scenario generation |
 
 No other AI tools (ChatGPT, Gemini, Copilot, etc.) were used in the preparation of this document.
 
