@@ -274,6 +274,7 @@ class ItemForecast(BaseModel):
     confidence: str
     flag: bool
     daily_predictions: list[int] = []
+    cold_start_active: bool = False
 
 class ForecastResponse(BaseModel):
     restaurant: str
@@ -355,6 +356,23 @@ def get_rolling_avg(item: str) -> float:
     return stats.get("last_7_avg", stats.get("mean", 20.0))
 
 
+# Conjugate Gaussian-Gaussian update: the cluster prior encodes what similar
+# restaurants sell on average; each observation from this specific restaurant
+# pulls the estimate toward its own pattern. With zero observations the prior
+# is returned unchanged; as history grows the posterior converges to the
+# restaurant's own observed mean.
+def bayesian_update(prior_mean: float, prior_variance: float, observations: list[float]) -> float:
+    n = len(observations)
+    if n == 0:
+        return prior_mean
+    obs_variance = float(np.var(observations)) if n >= 3 else prior_variance
+    obs_variance = max(obs_variance, 1e-6)
+    posterior_mean = (
+        prior_mean / prior_variance + sum(observations) / obs_variance
+    ) / (1.0 / prior_variance + n / obs_variance)
+    return posterior_mean
+
+
 def build_reasoning(req: ForecastRequest, week_start: date) -> str:
     parts = []
     if req.upcoming_events:
@@ -406,12 +424,32 @@ def forecast(req: ForecastRequest, key: str = Security(verify_api_key)):
 
     recommendations = []
 
+    # Pre-compute cluster assignment once per request for Bayesian cold-start
+    _kmeans        = artifact.get("kmeans_model")
+    _cuisine_enc   = artifact.get("cuisine_enc", {})
+    _cluster_priors = artifact.get("cluster_priors", {})
+    _c_enc  = float(_cuisine_enc.get(req.cuisine, 0))
+    _avgvol = min(float(req.seating_capacity or 60) * 2.5, 400.0)
+    _seating = float(req.seating_capacity or 60)
+    _cluster_id = int(_kmeans.predict(np.array([[_c_enc, _avgvol, _seating, 2.0]]))[0]) if _kmeans else -1
+
     for item in models:
         model = models[item]
         stats = item_stats[item]
         mape = mape_scores.get(item, 15.0)
         lag_7, lag_14, lag_28 = get_lag_values(item, week_start)
         rolling_avg = get_rolling_avg(item)
+
+        # Bayesian cold-start: if fewer than 56 days of history, blend cluster
+        # prior with available observations to improve the rolling_avg estimate.
+        last_35 = stats.get("last_35_sales", [])
+        cold_start_active = False
+        if len(last_35) < 56 and _cluster_id >= 0 and _cluster_priors:
+            prior = _cluster_priors.get(_cluster_id, {}).get(item)
+            if prior is not None:
+                observations = [float(r["units_sold"]) for r in last_35]
+                rolling_avg = bayesian_update(prior["mean"], prior["variance"], observations)
+                cold_start_active = True
 
         weekly_pred = 0.0
         daily_preds = []
@@ -461,6 +499,7 @@ def forecast(req: ForecastRequest, key: str = Security(verify_api_key)):
             confidence=conf,
             flag=flag,
             daily_predictions=daily_preds,
+            cold_start_active=cold_start_active,
         ))
 
     recommendations.sort(key=lambda x: (-int(x.flag), -x.predicted_demand))
