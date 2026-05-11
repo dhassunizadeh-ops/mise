@@ -82,7 +82,7 @@ At €99/month, the **Serviceable Obtainable Market** in Iberia alone represents
 
 ### 3.1 The Core Offer
 
-Every Monday morning, the restaurant owner opens a dashboard or receives an email containing:
+Every Monday morning, the restaurant owner opens a dashboard containing:
 
 - **Top 10 order recommendations** — item, suggested quantity, % change from last week
 - **Plain-English reasoning** — "Pasta demand up 25% — Festas de Lisboa this Saturday. Salmon down 15% — heavy rain forecast Friday–Sunday."
@@ -187,15 +187,14 @@ Predicts next-week demand per menu item. Features:
 - 7-day and 28-day rolling demand average
 - `rainfall_mm` (OpenMeteo free API)
 - `local_event_flag` (PredictHQ API / manual event toggle)
-- Item-level price changes
-- Lagged demand (t-1, t-7, t-28)
+- Lagged demand (t-7, t-14, t-28)
 
 **Model selection rationale:** LightGBM was chosen over classical time-series methods (ARIMA, Prophet) for three reasons: (i) it natively handles the mixed feature space of calendar, weather, and event signals without manual decomposition; (ii) gradient-boosted trees are robust to irregular demand spikes without requiring stationarity; (iii) inference latency on CPU is sub-second, requiring no GPU infrastructure. XGBoost was benchmarked but LightGBM's histogram-based splitting offered faster training on the per-restaurant retraining schedule.
 
-**Validation strategy:** A walk-forward time-series cross-validation is used — training on weeks 1–N, validating on week N+1, rolling forward. Random train/test splits are explicitly avoided as they introduce data leakage by allowing future demand to inform past predictions. Minimum training window: 8 weeks. Target MAPE < 15% against a naïve baseline (last-week repeat); the naïve baseline serves as the minimum-credibility threshold below which the product would have no value proposition.
+**Validation strategy:** A chronological 60/20/20 train/validation/test split is used — the earliest 60% of each item's history forms the training set, the next 20% the validation set used for early stopping, and the final 20% the held-out test set on which MAPE is reported. Random splits are explicitly avoided as they introduce data leakage by allowing future demand to inform past predictions. Minimum training window: 8 weeks. Target MAPE < 15% against a naïve baseline (last-week repeat); the naïve baseline serves as the minimum-credibility threshold below which the product would have no value proposition.
 
 **② Bayesian Cold-Start**
-New restaurants have no history. On onboarding, the restaurant is clustered by cuisine type, seating capacity, and neighbourhood. A Bayesian prior is drawn from the cluster's aggregate demand distribution. Formally, weekly demand per item is modelled as a Gaussian with prior μ ~ N(μ_cluster, σ_cluster²) and σ² ~ Inv-Gamma(α_cluster, β_cluster), where μ_cluster and σ_cluster² are computed from all restaurants in the same cluster. As the restaurant accumulates observations, the posterior is updated via conjugate updating: the posterior mean shifts from the cluster mean toward the restaurant's own empirical mean at a rate proportional to the number of observed weeks. After 8–12 weeks of data, the posterior converges to a restaurant-specific estimate and the cluster prior contributes negligibly. This is the academically novel component — it solves a real commercial problem (churn risk in week 1) with a principled statistical approach that is interpretable and computationally trivial to implement.
+New restaurants have no history. On onboarding, the restaurant is clustered by cuisine type, seating capacity, and estimated weekly volume. A Bayesian prior is drawn from the cluster's aggregate demand distribution. Formally, weekly demand per item is modelled as a Gaussian with prior μ ~ N(μ_cluster, σ_cluster²), where μ_cluster and σ_cluster² are computed empirically from all restaurants in the same cluster using a Gaussian conjugate update. As the restaurant accumulates observations, the posterior is updated via conjugate updating: the posterior mean shifts from the cluster mean toward the restaurant's own empirical mean at a rate proportional to the number of observed weeks. After 8–12 weeks of data, the posterior converges to a restaurant-specific estimate and the cluster prior contributes negligibly. This is the academically novel component — it solves a real commercial problem (churn risk in week 1) with a principled statistical approach that is interpretable and computationally trivial to implement.
 
 **③ Anomaly Detection**
 A threshold-based anomaly detector runs alongside the forecasting model. For each menu item, a rolling mean and standard deviation are computed over a 28-day window. If a signal deviates by more than 2.5σ from the rolling expected range, the anomaly is flagged in the dashboard and excluded from the next forecast cycle. This prevents the model from amplifying broken data (e.g., a POS outage, an unusually closed Monday).
@@ -204,7 +203,7 @@ A threshold-based anomaly detector runs alongside the forecasting model. For eac
 
 The FastAPI backend passes the structured forecast JSON to GPT-4o-mini with a system prompt defining the restaurant persona and recommendation format. GPT-4o-mini returns 3–5 sentences of plain English per item flagged for significant change. Prompt is ~2,500 tokens input; response ~600 tokens output.
 
-**Hallucination safeguard:** GPT-4o-mini's output is constrained by a structured schema and post-processed against the forecast values. If GPT-4o-mini's text contradicts the numeric recommendation by more than 10%, the text is discarded and a template fallback is used. The numeric forecast is always the authoritative signal; GPT-4o-mini adds only the explanatory layer.
+**Hallucination safeguard:** GPT-4o-mini's output is constrained by a structured schema and post-processed against the forecast values. If GPT-4o-mini's text directionally contradicts the numeric recommendation — for example, suggesting reduction for an item the model has forecast to increase — the text is discarded and a template fallback is used. The numeric forecast is always the authoritative signal; GPT-4o-mini adds only the explanatory layer.
 
 ---
 
@@ -315,7 +314,7 @@ Independent restaurant owners do not trust technology companies. They trust peop
 | **GPT-4o-mini API — output tokens** | 4 calls × ~700 tokens = 2,800 tokens/month | ~€0.002 |
 | **OpenMeteo API** | Free tier; 1 call/day per restaurant | €0.00 |
 | **PredictHQ API** | Free tier; up to 5 event lookups/week per restaurant | €0.00 |
-| **Total AI variable cost** | | **~€0.004 / restaurant / month** |
+| **Total AI variable cost** | | **~€0.006 / restaurant / month** |
 
 *Pricing based on GPT-4o-mini (OpenAI): $0.15/MTok input, $0.60/MTok output at time of writing.*
 
@@ -329,14 +328,14 @@ Independent restaurant owners do not trust technology companies. They trust peop
 | Domain, email, monitoring | €10 | €35 |
 | **Total infra** | **€50** | **€300** |
 
-**Key insight:** Mise's marginal cost per additional restaurant is essentially **€0.004/month**. Gross margin expands toward **~86%** as revenue scales past fixed infrastructure costs.
+**Key insight:** Mise's marginal cost per additional restaurant is essentially **€0.006/month**. Gross margin expands toward **~86%** as revenue scales past fixed infrastructure costs.
 
 ### 8.2 Unit Economics
 
 | Metric | Value | Assumption |
 |---|---|---|
 | Monthly Revenue per Restaurant (ARPU) | €99 | Single-site plan |
-| Variable AI cost per restaurant | €0.004 | Per calculation above |
+| Variable AI cost per restaurant | €0.006 | Per calculation above |
 | Gross Profit per Restaurant | ~€99 | Before infra fixed costs |
 | Customer Acquisition Cost (CAC) | €180 | Founder time + events; blended Y1 |
 | Monthly Churn Rate | 5% (Y1) → 3% (Y3) | B2B SaaS restaurant baseline |
@@ -390,7 +389,7 @@ Monthly fixed costs (Year 1):
 | G&A (amortised) | €250 |
 | **Total fixed costs** | **€3,384** |
 
-Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − €0.004 (AI) = €86.50**
+Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − €0.006 (AI) = €86.49**
 
 **Break-even: ⌈3,384 / 86.50⌉ = ~39 restaurants** — the active count at which monthly revenues cover Year 1-level fixed costs. Under base-case projections the restaurant count crosses 39 in Month 3 of Year 2, but Year 2's aggregate EBITDA of €9,095 only partially offsets the Year 1 loss of €30,221. Full **cumulative cash-flow break-even** — the month at which the business has recovered all prior losses — is reached in **Month 4 of Year 3**.
 
@@ -416,7 +415,7 @@ Mise requires no external funding to reach profitability. The 60-day free pilot 
 |---|---|---|---|
 | POS API access restricted by provider | Medium | High | Build CSV fallback; negotiate integration partnerships proactively |
 | Restaurant churn higher than modelled | Medium | Medium | Monitor NPS weekly; offer quarterly accuracy reviews; build referral habit early |
-| LLM (GPT-4o-mini) cost increase | Low | Low | AI cost is <0.01% of revenue; switch to GPT-4o-nano or open-source Llama 3 if needed |
+| LLM (GPT-4o-mini) cost increase | Low | Low | AI cost is <0.01% of revenue; switch to GPT-4.1-mini or open-source Llama 3 if needed |
 | Competitor (Square) builds native forecast | Low | High | Cross-restaurant data flywheel is 2–3 years ahead; accelerate data acquisition |
 | Model accuracy insufficient for trust | Low | High | Show accuracy tracker in dashboard from Week 1; money-back guarantee removes risk for owner |
 | Food safety / liability for bad forecast | Low | Medium | Clear T&Cs: Mise is advisory only; owner retains all purchasing decisions |
@@ -430,7 +429,7 @@ Mise is built on top of large language models and ML forecasting systems. This s
 
 ### 10.1 Hallucination Risk
 
-GPT-4o-mini is used exclusively to generate the explanatory text layer of the weekly brief — it never produces the numeric forecast. The authoritative recommendation (item, quantity, direction) comes from the LightGBM model. If GPT-4o-mini's natural-language explanation contradicts the underlying numeric output by more than 10%, the text is discarded and a deterministic template fallback is used instead. This design ensures that a hallucinated explanation cannot lead to a harmful ordering decision.
+GPT-4o-mini is used exclusively to generate the explanatory text layer of the weekly brief — it never produces the numeric forecast. The authoritative recommendation (item, quantity, direction) comes from the LightGBM model. If GPT-4o-mini's natural-language explanation directionally contradicts the underlying numeric output — for example, suggesting reduction for an item the model has forecast to increase — the text is discarded and a deterministic template fallback is used instead. This design ensures that a hallucinated explanation cannot lead to a harmful ordering decision.
 
 ### 10.2 Overreliance
 
@@ -438,7 +437,7 @@ A core UX principle of Mise is that the weekly brief is explicitly framed as a r
 
 ### 10.3 Bias and Fairness
 
-LightGBM models trained on historical sales data can perpetuate past patterns, including those caused by temporary disruptions (e.g., a supplier issue, a one-off event that skewed demand). The threshold-based anomaly detector (Section 5.2 ③) filters out statistically anomalous training points before they enter the model. Additionally, the Bayesian cold-start module draws priors from a cuisine-type and neighbourhood cluster, not from a global average, reducing the risk of biased predictions for restaurants with atypical demand profiles.
+LightGBM models trained on historical sales data can perpetuate past patterns, including those caused by temporary disruptions (e.g., a supplier issue, a one-off event that skewed demand). The threshold-based anomaly detector (Section 5.2 ③) filters out statistically anomalous training points before they enter the model. Additionally, the Bayesian cold-start module draws priors from a cuisine-type and estimated weekly volume cluster, not from a global average, reducing the risk of biased predictions for restaurants with atypical demand profiles.
 
 ### 10.4 Privacy and Data Minimisation
 
@@ -461,7 +460,7 @@ The cross-restaurant Bayesian prior is a statistical aggregate — no individual
 | Tool | Version | Usage Phase | Role |
 |---|---|---|---|
 | **Claude (Anthropic)** | claude-sonnet-4-6 | Ideation, writing, editing | Primary authoring assistant |
-| **GPT-4o-mini (OpenAI)** | gpt-4o-mini | Financial modelling | Weekly brief natural-language generation |
+| **GPT-4o-mini (OpenAI)** | gpt-4o-mini | Recommendation text generation (product component) | Weekly brief natural-language generation |
 
 No other AI tools were used in the *preparation of this document*. Note: GPT-4o-mini is used as a component of the Mise product itself (recommendation text generation) — this is distinct from its use as a writing or analysis assistant during document preparation.
 
@@ -542,10 +541,10 @@ No other AI tools were used in the *preparation of this document*. Note: GPT-4o-
 
 **Tool:** Claude (Sonnet)
 
-**What was done:** Claude was used to generate the synthetic dataset (12 months of daily sales data for a 40-seat Italian restaurant), scaffold the LightGBM training pipeline, and generate FastAPI boilerplate.
+**What was done:** Claude was used to generate the synthetic dataset (24 months / 730 days of daily sales data for a 40-seat Italian restaurant), scaffold the LightGBM training pipeline, and generate FastAPI boilerplate.
 
 **Representative prompt excerpt (data generation):**
-> *"Generate 12 months of daily sales data for a fictional 40-seat Italian restaurant in Lisbon. Include 12 menu items. Build in seasonal variation, a weekly pattern (busy Friday/Saturday), rain sensitivity for fish dishes, and two local event spikes (Festas de Lisboa in June, New Year's Eve). Output as a CSV with columns: date, item_name, units_sold, rainfall_mm, local_event_flag."*
+> *"Generate 24 months of daily sales data for a fictional 40-seat Italian restaurant in Lisbon. Include 12 menu items. Build in seasonal variation, a weekly pattern (busy Friday/Saturday), rain sensitivity for fish dishes, and two local event spikes (Festas de Lisboa in June, New Year's Eve). Output as a CSV with columns: date, item_name, units_sold, rainfall_mm, local_event_flag."*
 
 **Claude's contribution:** Produced a complete Python script that generated the synthetic CSV. The team reviewed the output for plausibility (demand patterns, seasonal shape) and adjusted parameters where the simulated data felt unrealistic.
 
