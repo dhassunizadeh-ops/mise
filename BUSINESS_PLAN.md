@@ -27,7 +27,7 @@
 
 Independent restaurants operate on 3–5% net margins and make inventory decisions by instinct. Food waste costs a typical 40-seat restaurant **€600–1,200 per month**. Mise eliminates the majority of that waste for **€99/month** — a return-on-investment that makes the product close itself.
 
-The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Bayesian cold-start module that gives new restaurants a credible prior from day one, and an anomaly-detection layer that prevents the forecast from chasing broken signals. The recommendation text is generated via the Gemini API and delivered through a Streamlit dashboard.
+The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Bayesian cold-start module that gives new restaurants a credible prior from day one, and an anomaly-detection layer that prevents the forecast from chasing broken signals. The recommendation text is generated via the OpenAI API (GPT-4o-mini) and delivered through a Streamlit dashboard.
 
 **Key metrics at a glance:**
 
@@ -62,7 +62,7 @@ Three forces have converged to make this problem solvable at low cost:
 
 1. **POS ubiquity** — Square, Lightspeed, and Toast now hold 12+ months of granular transaction history for the majority of European independents. The data exists; it is simply unused.
 2. **Open-source ML maturity** — LightGBM runs on a €20/month VPS. There is no GPU requirement, no six-figure data science team.
-3. **LLM availability** — Natural-language recommendation generation via the Gemini API costs fractions of a cent per restaurant per week, making a human-readable weekly brief economically viable.
+3. **LLM availability** — Natural-language recommendation generation via the OpenAI API (GPT-4o-mini) costs fractions of a cent per restaurant per week, making a human-readable weekly brief economically viable.
 
 ### 2.3 Market Size
 
@@ -165,7 +165,7 @@ POS System (Square / Lightspeed)
 │  │  ③ Anomaly detection    │   │
 │  └─────────────────────────┘   │
 │  ┌─────────────────────────┐   │
-│  │  Gemini API             │   │
+│  │  GPT-4o-mini            │   │
 │  │  Recommendation text    │   │
 │  └─────────────────────────┘   │
 └─────────────────────────────────┘
@@ -186,7 +186,7 @@ Predicts next-week demand per menu item. Features:
 - Day-of-week, week-of-year, is_holiday
 - 7-day and 28-day rolling demand average
 - `rainfall_mm` (OpenMeteo free API)
-- `local_event_flag` (Eventbrite API / manual calendar)
+- `local_event_flag` (PredictHQ API / manual event toggle)
 - Item-level price changes
 - Lagged demand (t-1, t-7, t-28)
 
@@ -200,11 +200,11 @@ New restaurants have no history. On onboarding, the restaurant is clustered by c
 **③ Anomaly Detection**
 A threshold-based anomaly detector runs alongside the forecasting model. For each menu item, a rolling mean and standard deviation are computed over a 28-day window. If a signal deviates by more than 2.5σ from the rolling expected range, the anomaly is flagged in the dashboard and excluded from the next forecast cycle. This prevents the model from amplifying broken data (e.g., a POS outage, an unusually closed Monday).
 
-### 5.3 Gemini API Integration
+### 5.3 GPT-4o-mini Integration
 
-The FastAPI backend passes the structured forecast JSON to Gemini with a system prompt defining the restaurant persona and recommendation format. Gemini returns 3–5 sentences of plain English per item flagged for significant change. Prompt is ~2,500 tokens input; response ~600 tokens output.
+The FastAPI backend passes the structured forecast JSON to GPT-4o-mini with a system prompt defining the restaurant persona and recommendation format. GPT-4o-mini returns 3–5 sentences of plain English per item flagged for significant change. Prompt is ~2,500 tokens input; response ~600 tokens output.
 
-**Hallucination safeguard:** Gemini's output is constrained by a structured schema and post-processed against the forecast values. If Gemini's text contradicts the numeric recommendation by more than 10%, the text is discarded and a template fallback is used. The numeric forecast is always the authoritative signal; Gemini adds only the explanatory layer.
+**Hallucination safeguard:** GPT-4o-mini's output is constrained by a structured schema and post-processed against the forecast values. If GPT-4o-mini's text contradicts the numeric recommendation by more than 10%, the text is discarded and a template fallback is used. The numeric forecast is always the authoritative signal; GPT-4o-mini adds only the explanatory layer.
 
 ---
 
@@ -311,13 +311,13 @@ Independent restaurant owners do not trust technology companies. They trust peop
 | Cost Item | Detail | Monthly Cost per Restaurant |
 |---|---|---|
 | **LightGBM inference** | Self-hosted; runs on shared VPS | ~€0.002 (negligible) |
-| **Gemini API — input tokens** | 4 weekly calls × ~3,000 tokens = 12,000 tokens/month | ~€0.001 |
-| **Gemini API — output tokens** | 4 calls × ~700 tokens = 2,800 tokens/month | ~€0.003 |
+| **GPT-4o-mini API — input tokens** | 4 weekly calls × ~3,000 tokens = 12,000 tokens/month | ~€0.002 |
+| **GPT-4o-mini API — output tokens** | 4 calls × ~700 tokens = 2,800 tokens/month | ~€0.002 |
 | **OpenMeteo API** | Free tier; 1 call/day per restaurant | €0.00 |
-| **Eventbrite API** | Free read-only access | €0.00 |
+| **PredictHQ API** | Free tier; up to 5 event lookups/week per restaurant | €0.00 |
 | **Total AI variable cost** | | **~€0.004 / restaurant / month** |
 
-*Pricing based on Gemini 2.0 Flash (Google): $0.10/MTok input, $1.25/MTok output at time of writing.*
+*Pricing based on GPT-4o-mini (OpenAI): $0.15/MTok input, $0.60/MTok output at time of writing.*
 
 #### Infrastructure Costs (Shared, Monthly)
 
@@ -416,7 +416,7 @@ Mise requires no external funding to reach profitability. The 60-day free pilot 
 |---|---|---|---|
 | POS API access restricted by provider | Medium | High | Build CSV fallback; negotiate integration partnerships proactively |
 | Restaurant churn higher than modelled | Medium | Medium | Monitor NPS weekly; offer quarterly accuracy reviews; build referral habit early |
-| LLM (Gemini) cost increase | Low | Low | AI cost is <0.01% of revenue; switch to Flash Lite or open-source Llama 3 if needed |
+| LLM (GPT-4o-mini) cost increase | Low | Low | AI cost is <0.01% of revenue; switch to GPT-4o-nano or open-source Llama 3 if needed |
 | Competitor (Square) builds native forecast | Low | High | Cross-restaurant data flywheel is 2–3 years ahead; accelerate data acquisition |
 | Model accuracy insufficient for trust | Low | High | Show accuracy tracker in dashboard from Week 1; money-back guarantee removes risk for owner |
 | Food safety / liability for bad forecast | Low | Medium | Clear T&Cs: Mise is advisory only; owner retains all purchasing decisions |
@@ -430,7 +430,7 @@ Mise is built on top of large language models and ML forecasting systems. This s
 
 ### 10.1 Hallucination Risk
 
-Gemini is used exclusively to generate the explanatory text layer of the weekly brief — it never produces the numeric forecast. The authoritative recommendation (item, quantity, direction) comes from the LightGBM model. If Gemini's natural-language explanation contradicts the underlying numeric output by more than 10%, the text is discarded and a deterministic template fallback is used instead. This design ensures that a hallucinated explanation cannot lead to a harmful ordering decision.
+GPT-4o-mini is used exclusively to generate the explanatory text layer of the weekly brief — it never produces the numeric forecast. The authoritative recommendation (item, quantity, direction) comes from the LightGBM model. If GPT-4o-mini's natural-language explanation contradicts the underlying numeric output by more than 10%, the text is discarded and a deterministic template fallback is used instead. This design ensures that a hallucinated explanation cannot lead to a harmful ordering decision.
 
 ### 10.2 Overreliance
 
@@ -461,9 +461,9 @@ The cross-restaurant Bayesian prior is a statistical aggregate — no individual
 | Tool | Version | Usage Phase | Role |
 |---|---|---|---|
 | **Claude (Anthropic)** | claude-sonnet-4-6 | Ideation, writing, editing | Primary authoring assistant |
-| **Gemini (Google)** | Gemini 2.0 Flash | Financial modelling | Arithmetic checking and scenario generation |
+| **GPT-4o-mini (OpenAI)** | gpt-4o-mini | Financial modelling | Weekly brief natural-language generation |
 
-No other AI tools were used in the *preparation of this document*. Note: Gemini 2.0 Flash is used as a component of the Mise product itself (recommendation text generation) — this is distinct from its use as a writing or analysis assistant during document preparation.
+No other AI tools were used in the *preparation of this document*. Note: GPT-4o-mini is used as a component of the Mise product itself (recommendation text generation) — this is distinct from its use as a writing or analysis assistant during document preparation.
 
 ---
 
