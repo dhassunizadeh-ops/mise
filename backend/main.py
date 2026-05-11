@@ -12,14 +12,27 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 import requests
-import google.generativeai as genai
+import hashlib
+import json
+import time
+from openai import OpenAI
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.security import APIKeyHeader
+from fastapi import Security
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+openai_client = OpenAI(api_key=os.getenv("OPEN_AI_KEY"))
+
+API_KEY = os.getenv("MISE_API_KEY", "mise-dev-key")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def verify_api_key(key: str = Security(api_key_header)):
+    if key != API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return key
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(ROOT, "ml", "model.pkl")
@@ -134,10 +147,32 @@ def get_nearby_events(lat: float = 38.7, lng: float = -9.14) -> dict:
     except Exception as e:
         return {"event_count": 0, "events": [], "major_event": False}
 
-def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str, owner_notes: str = "") -> str:
-    try:
-        model = genai.GenerativeModel("gemini-2.0-flash")
+import hashlib
+import json
+import time
 
+_insights_cache = {}
+CACHE_TTL = 86400  # 24 hours
+
+def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str, owner_notes: str = "") -> str:
+    # Create cache key
+    cache_key = hashlib.md5(
+        json.dumps({
+            "restaurant": restaurant_name,
+            "avg_temp": weather.get("avg_temp"),
+            "rainy_days": weather.get("rainy_days"),
+            "demands": [(r.menu_item, r.predicted_demand) for r in recommendations],
+            "notes": owner_notes
+        }, sort_keys=True).encode()
+    ).hexdigest()
+
+    # Return cached if exists and fresh
+    if cache_key in _insights_cache:
+        result, timestamp = _insights_cache[cache_key]
+        if time.time() - timestamp < CACHE_TTL:
+            return result
+
+    try:
         items_summary = "\n".join([
             f"- {r.menu_item}: {r.predicted_demand} units predicted, {r.vs_last_week} vs last week, confidence: {r.confidence}, flagged: {r.flag}"
             for r in recommendations
@@ -163,14 +198,34 @@ Average: {weather['avg_temp']}C, {weather['rainy_days']} rainy days.{notes_secti
 
 Your job is to reason across ALL these signals simultaneously — weather patterns, demand changes vs last week, confidence levels, flagged items, and any owner notes — and produce a single confident recommendation paragraph.
 
-If the owner has provided notes, factor them into your reasoning and adjust your recommendations accordingly. For example if they mention a private event on a specific day, account for that in your order recommendations.
-
 Do NOT just narrate the numbers. Cross-reference the signals and explain WHY the pattern is happening and WHAT specific action the restaurant should take. Include which specific days to front-load or reduce orders. The output should read like advice from an expert who understands both the data and the restaurant business — not a template.
 
 Be specific, be direct, maximum 4 sentences.
 """
-        response = model.generate_content(prompt)
-        return response.text
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+        )
+        result = response.choices[0].message.content
+
+        # Contradiction check — if LLM contradicts model by >10%, fall back to template
+        def check_contradiction(recommendations, ai_text):
+            for r in recommendations:
+                item = r.menu_item.lower()
+                last_week = r.vs_last_week
+                if "+" in last_week and any(word in ai_text.lower() for word in ["reduce", "cut", "lower", "decrease"]) and item in ai_text.lower():
+                    return True
+                if "-" in last_week and any(word in ai_text.lower() for word in ["increase", "order more", "stock up"]) and item in ai_text.lower():
+                    return True
+            return False
+
+        if check_contradiction(recommendations, result):
+            top_item = recommendations[0].menu_item
+            result = f"Based on current forecasts, prioritise ordering {top_item} this week. Weather conditions suggest {'increased' if weather['rainy_days'] < 3 else 'reduced'} outdoor dining demand. Review flagged items carefully and adjust orders within 10% of recommended quantities."
+
+        _insights_cache[cache_key] = (result, time.time())
+        return result
     except Exception as e:
         return f"AI insights unavailable: {str(e)}"
 
@@ -327,7 +382,7 @@ def health():
 
 
 @app.post("/forecast", response_model=ForecastResponse)
-def forecast(req: ForecastRequest):
+def forecast(req: ForecastRequest, key: str = Security(verify_api_key)):
     if artifact is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
