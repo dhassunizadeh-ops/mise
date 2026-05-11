@@ -1,7 +1,7 @@
 # Mise — Business Plan
 ### Advanced Topics in Machine Learning · 2758-T4
 ### Nova School of Business and Economics
-### Deliverable 1 — Riccardo Bertolini, Oliver Mourant, Dariusch Hassunizadeh
+### Deliverable 1 — Riccardo Bertolini, Oliver Mourant, Dariusch Jose Hassunizadeh
 
 ---
 
@@ -450,6 +450,8 @@ The cross-restaurant Bayesian prior is a statistical aggregate — no individual
 
 
 
+## Appendix A — GenAI Transparency Log
+
 *This appendix documents all AI tool usage during the ideation, writing, and development of this business plan, in compliance with the course's academic integrity and GenAI disclosure requirements.*
 
 ---
@@ -459,7 +461,7 @@ The cross-restaurant Bayesian prior is a statistical aggregate — no individual
 | Tool | Version | Usage Phase | Role |
 |---|---|---|---|
 | **Claude (Anthropic)** | claude-sonnet-4-6 | Ideation, writing, editing | Primary authoring assistant |
-| **Claude (Anthropic)** | Gemini 2.0 Flash | Financial modelling | Arithmetic checking and scenario generation |
+| **Gemini (Google)** | Gemini 2.0 Flash | Financial modelling | Arithmetic checking and scenario generation |
 
 No other AI tools (ChatGPT, Gemini, Copilot, etc.) were used in the preparation of this document.
 
@@ -547,7 +549,7 @@ No other AI tools (ChatGPT, Gemini, Copilot, etc.) were used in the preparation 
 
 **Claude's contribution:** Produced a complete Python script that generated the synthetic CSV. The team reviewed the output for plausibility (demand patterns, seasonal shape) and adjusted parameters where the simulated data felt unrealistic.
 
-**Human contribution:** All model architecture decisions (LightGBM over XGBoost, Bayesian cold-start approach, Isolation Forest for anomaly detection) were made by the team. Claude generated boilerplate; the ML design was human-led.
+**Human contribution:** All model architecture decisions (LightGBM over XGBoost, Bayesian cold-start approach, threshold-based anomaly detection) were made by the team. Claude generated boilerplate; the ML design was human-led.
 
 ---
 
