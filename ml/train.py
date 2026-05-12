@@ -190,6 +190,17 @@ def save_artifacts(models, feature_importances, mape_scores, naive_mape_scores, 
             "last_35_sales": idf.tail(35)[["date", "units_sold"]].to_dict("records"),
         }
 
+    # Compute cluster-level priors for Bayesian cold-start.
+    # With one training restaurant (Italian, 60 seats) assign it to its cluster,
+    # then record each item's historical mean/variance as the prior for that cluster.
+    _c_enc  = float(CUISINE_ENC.get("Italian", 0))
+    _avgvol = min(60 * 2.5, 400.0)
+    _cluster_id = int(kmeans_model.predict(np.array([[_c_enc, _avgvol, 60.0, 2.0]]))[0])
+    cluster_priors: dict[int, dict[str, dict]] = {_cluster_id: {}}
+    for item, stats in item_stats.items():
+        variance = max(stats["std"] ** 2, 1.0)  # guard against zero-variance items
+        cluster_priors[_cluster_id][item] = {"mean": stats["mean"], "variance": variance}
+
     artifact = {
         "models": models,
         "feature_importances": feature_importances,
@@ -202,6 +213,7 @@ def save_artifacts(models, feature_importances, mape_scores, naive_mape_scores, 
         "kmeans_model": kmeans_model,
         "cluster_labels": CLUSTER_LABELS,
         "cuisine_enc": CUISINE_ENC,
+        "cluster_priors": cluster_priors,
     }
 
     with open("ml/model.pkl", "wb") as f:

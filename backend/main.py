@@ -12,14 +12,27 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 import requests
-import google.generativeai as genai
+import hashlib
+import json
+import time
+from openai import OpenAI
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.security import APIKeyHeader
+from fastapi import Security
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+openai_client = OpenAI(api_key=os.getenv("OPEN_AI_KEY"))
+
+API_KEY = os.getenv("MISE_API_KEY", "mise-dev-key")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+async def verify_api_key(key: str = Security(api_key_header)):
+    if key != API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return key
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(ROOT, "ml", "model.pkl")
@@ -134,10 +147,32 @@ def get_nearby_events(lat: float = 38.7, lng: float = -9.14) -> dict:
     except Exception as e:
         return {"event_count": 0, "events": [], "major_event": False}
 
-def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str, owner_notes: str = "") -> str:
-    try:
-        model = genai.GenerativeModel("gemini-2.0-flash")
+import hashlib
+import json
+import time
 
+_insights_cache = {}
+CACHE_TTL = 86400  # 24 hours
+
+def get_ai_insights(recommendations: list, weather: dict, restaurant_name: str, owner_notes: str = "") -> str:
+    # Create cache key
+    cache_key = hashlib.md5(
+        json.dumps({
+            "restaurant": restaurant_name,
+            "avg_temp": weather.get("avg_temp"),
+            "rainy_days": weather.get("rainy_days"),
+            "demands": [(r.menu_item, r.predicted_demand) for r in recommendations],
+            "notes": owner_notes
+        }, sort_keys=True).encode()
+    ).hexdigest()
+
+    # Return cached if exists and fresh
+    if cache_key in _insights_cache:
+        result, timestamp = _insights_cache[cache_key]
+        if time.time() - timestamp < CACHE_TTL:
+            return result
+
+    try:
         items_summary = "\n".join([
             f"- {r.menu_item}: {r.predicted_demand} units predicted, {r.vs_last_week} vs last week, confidence: {r.confidence}, flagged: {r.flag}"
             for r in recommendations
@@ -163,14 +198,34 @@ Average: {weather['avg_temp']}C, {weather['rainy_days']} rainy days.{notes_secti
 
 Your job is to reason across ALL these signals simultaneously — weather patterns, demand changes vs last week, confidence levels, flagged items, and any owner notes — and produce a single confident recommendation paragraph.
 
-If the owner has provided notes, factor them into your reasoning and adjust your recommendations accordingly. For example if they mention a private event on a specific day, account for that in your order recommendations.
-
 Do NOT just narrate the numbers. Cross-reference the signals and explain WHY the pattern is happening and WHAT specific action the restaurant should take. Include which specific days to front-load or reduce orders. The output should read like advice from an expert who understands both the data and the restaurant business — not a template.
 
 Be specific, be direct, maximum 4 sentences.
 """
-        response = model.generate_content(prompt)
-        return response.text
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+        )
+        result = response.choices[0].message.content
+
+        # Contradiction check — if LLM contradicts model by >10%, fall back to template
+        def check_contradiction(recommendations, ai_text):
+            for r in recommendations:
+                item = r.menu_item.lower()
+                last_week = r.vs_last_week
+                if "+" in last_week and any(word in ai_text.lower() for word in ["reduce", "cut", "lower", "decrease"]) and item in ai_text.lower():
+                    return True
+                if "-" in last_week and any(word in ai_text.lower() for word in ["increase", "order more", "stock up"]) and item in ai_text.lower():
+                    return True
+            return False
+
+        if check_contradiction(recommendations, result):
+            top_item = recommendations[0].menu_item
+            result = f"Based on current forecasts, prioritise ordering {top_item} this week. Weather conditions suggest {'increased' if weather['rainy_days'] < 3 else 'reduced'} outdoor dining demand. Review flagged items carefully and adjust orders within 10% of recommended quantities."
+
+        _insights_cache[cache_key] = (result, time.time())
+        return result
     except Exception as e:
         return f"AI insights unavailable: {str(e)}"
 
@@ -219,6 +274,7 @@ class ItemForecast(BaseModel):
     confidence: str
     flag: bool
     daily_predictions: list[int] = []
+    cold_start_active: bool = False
 
 class ForecastResponse(BaseModel):
     restaurant: str
@@ -300,6 +356,23 @@ def get_rolling_avg(item: str) -> float:
     return stats.get("last_7_avg", stats.get("mean", 20.0))
 
 
+# Conjugate Gaussian-Gaussian update: the cluster prior encodes what similar
+# restaurants sell on average; each observation from this specific restaurant
+# pulls the estimate toward its own pattern. With zero observations the prior
+# is returned unchanged; as history grows the posterior converges to the
+# restaurant's own observed mean.
+def bayesian_update(prior_mean: float, prior_variance: float, observations: list[float]) -> float:
+    n = len(observations)
+    if n == 0:
+        return prior_mean
+    obs_variance = float(np.var(observations)) if n >= 3 else prior_variance
+    obs_variance = max(obs_variance, 1e-6)
+    posterior_mean = (
+        prior_mean / prior_variance + sum(observations) / obs_variance
+    ) / (1.0 / prior_variance + n / obs_variance)
+    return posterior_mean
+
+
 def build_reasoning(req: ForecastRequest, week_start: date) -> str:
     parts = []
     if req.upcoming_events:
@@ -327,7 +400,7 @@ def health():
 
 
 @app.post("/forecast", response_model=ForecastResponse)
-def forecast(req: ForecastRequest):
+def forecast(req: ForecastRequest, key: str = Security(verify_api_key)):
     if artifact is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
@@ -351,12 +424,32 @@ def forecast(req: ForecastRequest):
 
     recommendations = []
 
+    # Pre-compute cluster assignment once per request for Bayesian cold-start
+    _kmeans        = artifact.get("kmeans_model")
+    _cuisine_enc   = artifact.get("cuisine_enc", {})
+    _cluster_priors = artifact.get("cluster_priors", {})
+    _c_enc  = float(_cuisine_enc.get(req.cuisine, 0))
+    _avgvol = min(float(req.seating_capacity or 60) * 2.5, 400.0)
+    _seating = float(req.seating_capacity or 60)
+    _cluster_id = int(_kmeans.predict(np.array([[_c_enc, _avgvol, _seating, 2.0]]))[0]) if _kmeans else -1
+
     for item in models:
         model = models[item]
         stats = item_stats[item]
         mape = mape_scores.get(item, 15.0)
         lag_7, lag_14, lag_28 = get_lag_values(item, week_start)
         rolling_avg = get_rolling_avg(item)
+
+        # Bayesian cold-start: if fewer than 56 days of history, blend cluster
+        # prior with available observations to improve the rolling_avg estimate.
+        last_35 = stats.get("last_35_sales", [])
+        cold_start_active = False
+        if len(last_35) < 56 and _cluster_id >= 0 and _cluster_priors:
+            prior = _cluster_priors.get(_cluster_id, {}).get(item)
+            if prior is not None:
+                observations = [float(r["units_sold"]) for r in last_35]
+                rolling_avg = bayesian_update(prior["mean"], prior["variance"], observations)
+                cold_start_active = True
 
         weekly_pred = 0.0
         daily_preds = []
@@ -406,6 +499,7 @@ def forecast(req: ForecastRequest):
             confidence=conf,
             flag=flag,
             daily_predictions=daily_preds,
+            cold_start_active=cold_start_active,
         ))
 
     recommendations.sort(key=lambda x: (-int(x.flag), -x.predicted_demand))

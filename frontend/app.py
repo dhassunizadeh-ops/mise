@@ -369,7 +369,12 @@ def run_forecast_locally(payload: dict) -> dict:
 
 def call_api_or_fallback(payload: dict) -> tuple[dict, str]:
     try:
-        r = requests.post(f"{API_URL}/forecast", json=payload, timeout=4)
+        r = requests.post(
+            f"{API_URL}/forecast", 
+            json=payload, 
+            timeout=4,
+            headers={"X-API-Key": "mise-secret-key-2026"}
+        )
         r.raise_for_status()
         return r.json(), "api"
     except Exception:
