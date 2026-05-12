@@ -546,7 +546,7 @@ No other AI tools were used in the *preparation of this document*. Note: GPT-4o-
 **Representative prompt excerpt (frontend):**
 > *"Build a Streamlit dashboard for a restaurant demand forecasting app called Mise. Four screens: a platform overview with simulated restaurants and total waste saved, a restaurant setup screen where the user picks cuisine and seating capacity, a forecast screen that runs the LightGBM model and shows weekly predictions per menu item, and an accuracy tracker comparing our model MAPE against a naive baseline. Keep the colour scheme green-toned, clean and minimal."*
 
-**Claude's contribution:** Produced a complete Python script that generated the synthetic CSV. The team reviewed the output for plausibility (demand patterns, seasonal shape) and adjusted parameters where the simulated data felt unrealistic.
+**Claude's contribution:** Generated the complete application stack iteratively across all three files — training pipeline, FastAPI backend, and Streamlit frontend — based on team-specified requirements and architectural direction.
 
 **Human contribution:** All product decisions — the four-screen flow, the platform overview concept, the cuisine-to-menu mapping logic, the accuracy tracker framing, the colour scheme, the demo narrative — originated with the team. Claude Code executed; the team directed, reviewed, and revised every iteration. All model architecture decisions (LightGBM over XGBoost, Bayesian cold-start approach, threshold-based anomaly detection) were made by the team. Claude generated boilerplate; the ML design was human-led.
 
@@ -554,7 +554,7 @@ No other AI tools were used in the *preparation of this document*. Note: GPT-4o-
 
 ### A.7 Summary Assessment
 
-Claude was used as a high-quality thinking partner, editor, and arithmetic checker throughout this project. It did not originate the business concept, the pricing strategy, the target market selection, the ML architecture, or the financial assumptions. Every Claude interaction was initiated by a human prompt with a specific question; Claude's responses were critically reviewed and frequently revised or rejected.
+Claude was used as a high-quality thinking partner, editor, arithmetic checker, and primary development tool throughout this project. It did not originate the business concept, the pricing strategy, the target market selection, the ML architecture, or the financial assumptions — and it did not make product or UX decisions. Every Claude interaction was initiated by a human prompt with a specific question or specification; Claude's responses and code outputs were critically reviewed, tested, and frequently revised or rejected.
 
 The team believes this represents responsible, transparent AI augmentation — consistent with how a junior analyst or research assistant might be used in a professional setting, with the human retaining full intellectual ownership of the output.
 
