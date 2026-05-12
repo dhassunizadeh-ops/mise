@@ -537,18 +537,18 @@ No other AI tools were used in the *preparation of this document*. Note: GPT-4o-
 
 ### A.6 Prototype / Code Assistance (Separate from Business Plan)
 
-**Date:** Week 2–3 (Dariusch Jose Hassunizadeh and Oliver Mourant's work — documented here for completeness)
+**Date:** Week 2–3 
 
 **Tool:** Claude (Sonnet)
 
-**What was done:** Claude was used to generate the synthetic dataset (24 months / 730 days of daily sales data for a 40-seat Italian restaurant), scaffold the LightGBM training pipeline, and generate FastAPI boilerplate.
+**What was done:** Claude Code was used to build the complete application stack — the LightGBM training pipeline (train.py), the FastAPI backend (main.py), and the full Streamlit frontend (app.py), including the four-screen UX, Plotly visualisations, platform overview, accuracy tracker, and API fallback logic. All product and architectural decisions were made by the team and translated into prompts; Claude Code implemented those decisions iteratively, with the team reviewing, testing, and revising each output.
 
-**Representative prompt excerpt (data generation):**
-> *"Generate 24 months of daily sales data for a fictional 40-seat Italian restaurant in Lisbon. Include 12 menu items. Build in seasonal variation, a weekly pattern (busy Friday/Saturday), rain sensitivity for fish dishes, and two local event spikes (Festas de Lisboa in June, New Year's Eve). Output as a CSV with columns: date, item_name, units_sold, rainfall_mm, local_event_flag."*
+**Representative prompt excerpt (frontend):**
+> *"Build a Streamlit dashboard for a restaurant demand forecasting app called Mise. Four screens: a platform overview with simulated restaurants and total waste saved, a restaurant setup screen where the user picks cuisine and seating capacity, a forecast screen that runs the LightGBM model and shows weekly predictions per menu item, and an accuracy tracker comparing our model MAPE against a naive baseline. Keep the colour scheme green-toned, clean and minimal."*
 
 **Claude's contribution:** Produced a complete Python script that generated the synthetic CSV. The team reviewed the output for plausibility (demand patterns, seasonal shape) and adjusted parameters where the simulated data felt unrealistic.
 
-**Human contribution:** All model architecture decisions (LightGBM over XGBoost, Bayesian cold-start approach, threshold-based anomaly detection) were made by the team. Claude generated boilerplate; the ML design was human-led.
+**Human contribution:** All product decisions — the four-screen flow, the platform overview concept, the cuisine-to-menu mapping logic, the accuracy tracker framing, the colour scheme, the demo narrative — originated with the team. Claude Code executed; the team directed, reviewed, and revised every iteration. All model architecture decisions (LightGBM over XGBoost, Bayesian cold-start approach, threshold-based anomaly detection) were made by the team. Claude generated boilerplate; the ML design was human-led.
 
 ---
 
@@ -560,7 +560,7 @@ The team believes this represents responsible, transparent AI augmentation — c
 
 ---
 
-*Document prepared by Riccardo Bertolini — Business Plan Lead*  
+
 *Project: Mise — AI Demand Forecasting for Independent Restaurants*  
 *Course: 2758-T4 Advanced Topics in Machine Learning, Nova SBE*  
 *Date: May 2026*
