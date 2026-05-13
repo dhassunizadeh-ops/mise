@@ -1,7 +1,7 @@
 # Mise — Business Plan
 ### Advanced Topics in Machine Learning · 2758-T4
 ### Nova School of Business and Economics
-### Deliverable 1 — Riccardo Bertolini, Oliver Mourant, Dariusch Jose Hassunizadeh
+### Deliverable 1 — Riccardo Bertolini, Oliver Mourant, Dariusch Hassunizadeh
 
 ---
 
@@ -214,7 +214,7 @@ The FastAPI backend passes the structured forecast JSON to GPT-4o-mini with a sy
 **Objective:** Acquire 10 paying restaurants in Lisbon. Validate core loop (forecast → order → measure waste reduction).
 
 **Tactics:**
-- **Founder-led outreach** — Direct approach to 50 restaurants in Lisbon's Bairro Alto, Príncipe Real, and Mouraria neighbourhoods. Target the owner directly, not a manager.
+- **Founder-led outreach** — Direct approach to 55 restaurants in Lisbon's Bairro Alto, Príncipe Real, and Mouraria neighbourhoods. Target the owner directly, not a manager.
 - **Free 60-day pilot** — Lower the commitment barrier. Ask for full access to POS data in exchange.
 - **Before/after data collection** — Ask owners to photograph their waste bin at week end. Anecdotal evidence, later used in marketing.
 - **Pricing:** €0 during pilot, transitioning to €99/month at day 61 with a money-back guarantee for month 3.
@@ -239,8 +239,10 @@ AHRESP (Portugal's hotel and restaurant trade association) and FEHR (Spain's equ
 
 **Pricing in Phase 2:**
 - Single location: €99/month
-- Multi-site (2–4 locations): €199/month
+- Multi-site (3–4 locations): €249/month
 - Annual prepay: 15% discount (improves cash flow)
+
+*Multi-site pricing reflects the operational consolidation value of a single dashboard across locations, not a simple per-seat discount.*
 
 ### 6.3 Phase 3 — Scalable Acquisition (Year 2+)
 
@@ -400,12 +402,19 @@ Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − �
 | Bear (50% miss) | 10 | €5,940 | €114,048 |
 | **Base** | **20** | **€11,880** | **€228,096** |
 | Bull (150% of plan) | 30 | €17,820 | €342,144 |
+| Pan-EU expansion (Y4+) | — | — | €1M+ ARR |
 
 Even in the bear case, the business reaches break-even in Year 2 and generates a healthy Y3 margin. The model is profitable at scale in all three scenarios, reflecting the capital efficiency of near-zero marginal AI costs and a conservative churn assumption of 5% monthly in Year 1.
 
+Pan-European expansion (France, Italy, Netherlands) is modelled as a Year 4+ event, contingent on Iberian proof-of-concept; the ~150,000 addressable POS-connected independents in those markets represent a 10x revenue opportunity on the same infrastructure.
+
 ### 8.4 Path to Profitability Narrative
 
-Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 45% rate, generating real revenue from Month 3. Year 1 ends at a planned operating loss of ~€30K — covered by initial personal capital — as founder compensation and customer success time are fully accounted for, and churn is modelled conservatively at 5% monthly. Year 2 generates €9K positive EBITDA, making the business operationally profitable on a monthly basis by mid-Year 2, but its aggregate surplus is insufficient to fully offset the Year 1 loss. Cumulative cash-flow break-even — the month at which total earnings from inception turn positive — is reached in **Month 4 of Year 3**. By Year 3 end, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive** from the end of Year 2.
+Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 45% rate, generating real revenue from Month 3. Year 1 ends at a planned operating loss of ~€30K — covered by initial personal capital — as founder compensation and customer success time are fully accounted for, and churn is modelled conservatively at 5% monthly. Year 2 generates €9K positive EBITDA, making the business operationally profitable on a monthly basis by mid-Year 2, but its aggregate surplus is insufficient to fully offset the Year 1 loss. Cumulative cash-flow break-even — the month at which total earnings from inception turn positive — is reached in **Month 4 of Year 3**. By Year 3 end, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive** from the end of Year 2. 
+
+The €99 single-site price is a deliberate market entry decision, designed to remove friction for price-sensitive, tech-skeptical independent operators. ARPU expansion comes through multi-site and enterprise tiers as trust is established.
+
+€228K ARR at Year 3 is intentionally scoped to the Iberian proof-of-concept phase. France, Italy, and the Netherlands represent a combined SAM of ~150,000 POS-connected independents at the same price point — a 10x revenue opportunity on infrastructure that scales at near-zero marginal cost. Multi-site pricing (€199–249/month) further compresses the path to €1M ARR once the cross-restaurant flywheel has real data behind it. The Year 3 figures are the foundation, not the destination.
 
 ---
 
