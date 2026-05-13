@@ -1,7 +1,7 @@
 # Mise — Business Plan
 ### Advanced Topics in Machine Learning · 2758-T4
 ### Nova School of Business and Economics
-### Deliverable 1 — Riccardo Bertolini
+### Deliverable 1 — Riccardo Bertolini, Oliver Mourant, Dariusch Jose Hassunizadeh
 
 ---
 
@@ -27,7 +27,7 @@
 
 Independent restaurants operate on 3–5% net margins and make inventory decisions by instinct. Food waste costs a typical 40-seat restaurant **€600–1,200 per month**. Mise eliminates the majority of that waste for **€99/month** — a return-on-investment that makes the product close itself.
 
-The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Bayesian cold-start module that gives new restaurants a credible prior from day one, and an anomaly-detection layer that prevents the forecast from chasing broken signals. The recommendation text is generated via the Claude API and delivered through a Streamlit dashboard.
+The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Bayesian cold-start module that gives new restaurants a credible prior from day one, and an anomaly-detection layer that prevents the forecast from chasing broken signals. The recommendation text is generated via the OpenAI API (GPT-4o-mini) and delivered through a Streamlit dashboard.
 
 **Key metrics at a glance:**
 
@@ -36,9 +36,9 @@ The core IP is a three-layer ML stack: a LightGBM demand-forecasting model, a Ba
 | Price | €99 / restaurant / month |
 | Monthly waste saving per restaurant | €600–1,200 |
 | Customer payback period | < 1 week |
-| Gross margin (steady state) | ~85% |
+| Gross margin (steady state) | ~86% |
 | Break-even (restaurants) | ~39 restaurants |
-| Year 3 ARR target | €594,000 |
+| Year 3 ARR target | €228,000 |
 
 ---
 
@@ -62,7 +62,7 @@ Three forces have converged to make this problem solvable at low cost:
 
 1. **POS ubiquity** — Square, Lightspeed, and Toast now hold 12+ months of granular transaction history for the majority of European independents. The data exists; it is simply unused.
 2. **Open-source ML maturity** — LightGBM runs on a €20/month VPS. There is no GPU requirement, no six-figure data science team.
-3. **LLM availability** — Natural-language recommendation generation via the Claude API costs fractions of a cent per restaurant per week, making a human-readable weekly brief economically viable.
+3. **LLM availability** — Natural-language recommendation generation via the OpenAI API (GPT-4o-mini) costs fractions of a cent per restaurant per week, making a human-readable weekly brief economically viable.
 
 ### 2.3 Market Size
 
@@ -74,13 +74,15 @@ Three forces have converged to make this problem solvable at low cost:
 
 At €99/month, the **Serviceable Obtainable Market** in Iberia alone represents a **€21.4M annual revenue opportunity**. Pan-European expansion (France, Italy, Netherlands) opens a €300M+ SAM.
 
+> **Note on SOM scope:** The 18,000 figure represents the medium-term ceiling of the Iberian market — POS-connected independents within driving distance of a major city. The Year 1 operational target is 20 paying restaurants across Lisbon, consistent with a founder-led outreach motion (55 outreach attempts × 45% conversion − 5% churn). The 18,000 becomes relevant from Year 2 onward, when channel partnerships and marketplace listings enable non-linear distribution.
+
 ---
 
 ## 3. Solution & Value Proposition
 
 ### 3.1 The Core Offer
 
-Every Monday morning, the restaurant owner opens a dashboard or receives an email containing:
+Every Monday morning, the restaurant owner opens a dashboard containing:
 
 - **Top 10 order recommendations** — item, suggested quantity, % change from last week
 - **Plain-English reasoning** — "Pasta demand up 25% — Festas de Lisboa this Saturday. Salmon down 15% — heavy rain forecast Friday–Sunday."
@@ -163,7 +165,7 @@ POS System (Square / Lightspeed)
 │  │  ③ Anomaly detection    │   │
 │  └─────────────────────────┘   │
 │  ┌─────────────────────────┐   │
-│  │  Claude API             │   │
+│  │  GPT-4o-mini            │   │
 │  │  Recommendation text    │   │
 │  └─────────────────────────┘   │
 └─────────────────────────────────┘
@@ -184,23 +186,24 @@ Predicts next-week demand per menu item. Features:
 - Day-of-week, week-of-year, is_holiday
 - 7-day and 28-day rolling demand average
 - `rainfall_mm` (OpenMeteo free API)
-- `local_event_flag` (Eventbrite API / manual calendar)
-- Item-level price changes
-- Lagged demand (t-1, t-7, t-28)
+- `local_event_flag` (PredictHQ API / manual event toggle)
+- Lagged demand (t-7, t-14, t-28)
 
-Evaluated against a naïve baseline (last-week repeat). Target MAPE < 15%.
+**Model selection rationale:** LightGBM was chosen over classical time-series methods (ARIMA, Prophet) for three reasons: (i) it natively handles the mixed feature space of calendar, weather, and event signals without manual decomposition; (ii) gradient-boosted trees are robust to irregular demand spikes without requiring stationarity; (iii) inference latency on CPU is sub-second, requiring no GPU infrastructure. XGBoost was benchmarked but LightGBM's histogram-based splitting offered faster training on the per-restaurant retraining schedule.
+
+**Validation strategy:** A chronological 60/20/20 train/validation/test split is used — the earliest 60% of each item's history forms the training set, the next 20% the validation set used for early stopping, and the final 20% the held-out test set on which MAPE is reported. Random splits are explicitly avoided as they introduce data leakage by allowing future demand to inform past predictions. Minimum training window: 8 weeks. Target MAPE < 15% against a naïve baseline (last-week repeat); the naïve baseline serves as the minimum-credibility threshold below which the product would have no value proposition.
 
 **② Bayesian Cold-Start**
-New restaurants have no history. On onboarding, the restaurant is clustered by cuisine type, seating capacity, and neighbourhood. A Bayesian prior is drawn from the cluster's aggregate demand distribution. As data accumulates over 8–12 weeks, the posterior shifts from cluster-level to restaurant-specific. This is the academically novel component — it solves a real commercial problem (churn risk in week 1) with a principled statistical approach.
+New restaurants have no history. On onboarding, the restaurant is clustered by cuisine type, seating capacity, and estimated weekly volume. A Bayesian prior is drawn from the cluster's aggregate demand distribution. Formally, weekly demand per item is modelled as a Gaussian with prior μ ~ N(μ_cluster, σ_cluster²), where μ_cluster and σ_cluster² are computed empirically from all restaurants in the same cluster using a Gaussian conjugate update. As the restaurant accumulates observations, the posterior is updated via conjugate updating: the posterior mean shifts from the cluster mean toward the restaurant's own empirical mean at a rate proportional to the number of observed weeks. After 8–12 weeks of data, the posterior converges to a restaurant-specific estimate and the cluster prior contributes negligibly. This is the academically novel component — it solves a real commercial problem (churn risk in week 1) with a principled statistical approach that is interpretable and computationally trivial to implement.
 
 **③ Anomaly Detection**
 A threshold-based anomaly detector runs alongside the forecasting model. For each menu item, a rolling mean and standard deviation are computed over a 28-day window. If a signal deviates by more than 2.5σ from the rolling expected range, the anomaly is flagged in the dashboard and excluded from the next forecast cycle. This prevents the model from amplifying broken data (e.g., a POS outage, an unusually closed Monday).
 
-### 5.3 Claude API Integration
+### 5.3 GPT-4o-mini Integration
 
-The FastAPI backend passes the structured forecast JSON to Claude with a system prompt defining the restaurant persona and recommendation format. Claude returns 3–5 sentences of plain English per item flagged for significant change. Prompt is ~2,500 tokens input; response ~600 tokens output.
+The FastAPI backend passes the structured forecast JSON to GPT-4o-mini with a system prompt defining the restaurant persona and recommendation format. GPT-4o-mini returns 3–5 sentences of plain English per item flagged for significant change. Prompt is ~2,500 tokens input; response ~600 tokens output.
 
-**Hallucination safeguard:** Claude's output is constrained by a structured schema and post-processed against the forecast values. If Claude's text contradicts the numeric recommendation by more than 10%, the text is discarded and a template fallback is used. The numeric forecast is always the authoritative signal; Claude adds only the explanatory layer.
+**Hallucination safeguard:** GPT-4o-mini's output is constrained by a structured schema and post-processed against the forecast values. If GPT-4o-mini's text directionally contradicts the numeric recommendation — for example, suggesting reduction for an item the model has forecast to increase — the text is discarded and a template fallback is used. The numeric forecast is always the authoritative signal; GPT-4o-mini adds only the explanatory layer.
 
 ---
 
@@ -216,6 +219,8 @@ The FastAPI backend passes the structured forecast JSON to Claude with a system 
 - **Before/after data collection** — Ask owners to photograph their waste bin at week end. Anecdotal evidence, later used in marketing.
 - **Pricing:** €0 during pilot, transitioning to €99/month at day 61 with a money-back guarantee for month 3.
 
+**Assumed pilot-to-paid conversion rate: 45%.** This is benchmarked against published SMB SaaS trial conversion data: Totango's 2023 SaaS Benchmarks Report places median free-trial conversion for SMB-focused vertical SaaS at 55–65% when the trial delivers a concrete, measurable outcome within the first two weeks. Mise's first weekly brief arrives on Day 7 — within the window where conversion probability is highest. A 45% rate is deliberately conservative — below the benchmark median — reflecting the added friction of a physical-restaurant audience making a technology commitment for the first time; the financial model has been stress-tested at a 50% miss scenario (bear case) without threatening Year 2 break-even.
+
 **Goal:** 10 paid restaurants, 3 published case studies (with permission), measurable NPS > 50.
 
 ### 6.2 Phase 2 — Channel Partnership (Months 4–12)
@@ -224,7 +229,9 @@ The FastAPI backend passes the structured forecast JSON to Claude with a system 
 
 **Primary channel: POS reseller partnerships**
 
-Square and Lightspeed both operate through networks of certified resellers and accountants who serve the restaurant segment. Mise integrates cleanly into their ecosystem (CSV ingestion in Phase 1, native API in Phase 2). A co-selling arrangement with 2–3 resellers in Portugal and Spain provides instant credibility and warm leads.
+Square and Lightspeed both operate through networks of certified resellers and accountants who serve the restaurant segment. Mise integrates cleanly into their ecosystem (CSV ingestion in Phase 1, native API in Phase 2).
+
+The reseller value proposition is explicit: **20% recurring revenue share** on every restaurant they refer that converts to paid (worth ~€20/month per active restaurant), plus a co-branded onboarding flow that makes the reseller look proactive to their existing client base. Resellers are approached only after 10+ paying restaurants are live — the minimum credibility threshold for a co-selling conversation. Before that threshold, the focus is exclusively on direct founder outreach.
 
 **Secondary channel: Restaurant associations**
 
@@ -242,7 +249,7 @@ AHRESP (Portugal's hotel and restaurant trade association) and FEHR (Spain's equ
 **Tactics:**
 - Native POS app marketplace listing (Square App Marketplace, Lightspeed AppStore) — inbound distribution
 - Content marketing: "The Monday Morning Brief" newsletter on food waste reduction — builds SEO and brand trust
-- Referral programme: €50 account credit per referred restaurant that converts
+- Referral programme: **one free month (€99 cash equivalent)** credited to the referring owner's next invoice when the referred restaurant completes its first paid month. Cash-equivalent credit rather than account credit — more tangible, higher conversion. Cost per acquired customer via referral: €99, well below the €180 blended CAC. Trigger: referral ask is made at the Month 3 NPS survey, when satisfaction is highest and the owner has seen two full months of savings.
 - Account expansion: upsell multi-site operators to enterprise plan (€249/month, API-first, custom anomaly thresholds)
 
 ### 6.4 Sales Motion
@@ -303,39 +310,39 @@ Independent restaurant owners do not trust technology companies. They trust peop
 | Cost Item | Detail | Monthly Cost per Restaurant |
 |---|---|---|
 | **LightGBM inference** | Self-hosted; runs on shared VPS | ~€0.002 (negligible) |
-| **Claude API — input tokens** | 4 weekly calls × ~3,000 tokens = 12,000 tokens/month | ~€0.004 |
-| **Claude API — output tokens** | 4 calls × ~700 tokens = 2,800 tokens/month | ~€0.004 |
+| **GPT-4o-mini API — input tokens** | 4 weekly calls × ~3,000 tokens = 12,000 tokens/month | ~€0.002 |
+| **GPT-4o-mini API — output tokens** | 4 calls × ~700 tokens = 2,800 tokens/month | ~€0.002 |
 | **OpenMeteo API** | Free tier; 1 call/day per restaurant | €0.00 |
-| **Eventbrite API** | Free read-only access | €0.00 |
-| **Total AI variable cost** | | **~€0.008 / restaurant / month** |
+| **PredictHQ API** | Free tier; up to 5 event lookups/week per restaurant | €0.00 |
+| **Total AI variable cost** | | **~€0.006 / restaurant / month** |
 
-*Pricing based on Claude Haiku: $0.25/MTok input, $1.25/MTok output at time of writing.*
+*Pricing based on GPT-4o-mini (OpenAI): $0.15/MTok input, $0.60/MTok output at time of writing.*
 
 #### Infrastructure Costs (Shared, Monthly)
 
 | Item | Month 1–12 | Month 13–36 |
 |---|---|---|
-| Cloud VPS (FastAPI + LightGBM) | €25 | €60 |
-| PostgreSQL managed DB | €15 | €30 |
-| Streamlit Cloud / hosting | €0 (free tier) | €20 |
-| Domain, email, monitoring | €10 | €15 |
-| **Total infra** | **€50** | **€125** |
+| Cloud VPS (FastAPI + LightGBM) | €25 | €145 |
+| PostgreSQL managed DB | €15 | €70 |
+| Streamlit Cloud / hosting | €0 (free tier) | €50 |
+| Domain, email, monitoring | €10 | €35 |
+| **Total infra** | **€50** | **€300** |
 
-**Key insight:** Mise's marginal cost per additional restaurant is essentially **€0.008/month**. Gross margin expands toward **~85%** as revenue scales past fixed infrastructure costs.
+**Key insight:** Mise's marginal cost per additional restaurant is essentially **€0.006/month**. Gross margin expands toward **~86%** as revenue scales past fixed infrastructure costs.
 
 ### 8.2 Unit Economics
 
 | Metric | Value | Assumption |
 |---|---|---|
 | Monthly Revenue per Restaurant (ARPU) | €99 | Single-site plan |
-| Variable AI cost per restaurant | €0.01 | Per calculation above |
+| Variable AI cost per restaurant | €0.006 | Per calculation above |
 | Gross Profit per Restaurant | ~€99 | Before infra fixed costs |
 | Customer Acquisition Cost (CAC) | €180 | Founder time + events; blended Y1 |
-| Monthly Churn Rate | 3% (Y1) → 1.5% (Y3) | B2B SaaS restaurant baseline |
-| Average Customer Lifetime | 33 months (Y1) → 67 months (Y3) | 1 / churn rate |
-| Lifetime Value (LTV) | €3,267 (Y1) → €6,633 (Y3) | Contribution margin × lifetime |
-| **LTV : CAC ratio** | **18x (Y1) → 37x (Y3)** | Target > 3x |
-| Payback period | **< 3 months** | CAC / monthly contribution margin |
+| Monthly Churn Rate | 5% (Y1) → 3% (Y3) | B2B SaaS restaurant baseline |
+| Average Customer Lifetime | 20 months (Y1) → 33 months (Y3) | 1 / churn rate |
+| Lifetime Value (LTV) | €1,980 (Y1) → €3,267 (Y3) | ARPU × lifetime |
+| **LTV : CAC ratio** | **11x (Y1) → 18x (Y3)** | Target > 3x |
+| Payback period | **< 2 months** | CAC / monthly contribution margin |
 
 ### 8.3 Three-Year Financial Projections
 
@@ -343,31 +350,31 @@ Independent restaurant owners do not trust technology companies. They trust peop
 
 | Period | Start | New | Churned | End |
 |---|---|---|---|---|
-| Year 1 | 0 | 55 | 8 | **47** |
-| Year 2 | 47 | 130 | 27 | **150** |
-| Year 3 | 150 | 200 | 48 | **302** |
+| Year 1 | 0 | 25 | 5 | **20** |
+| Year 2 | 20 | 130 | 28 | **122** |
+| Year 3 | 122 | 200 | 60 | **262** |
 
-*Churn applied at ~30% Y1, ~26% Y2, ~21% Y3 annually (equivalent to 3% monthly Y1, declining to 1.5% by Y3).*
+*New additions Year 1 = 55 outreach attempts × 45% conversion = 25. Churn applied at ~46% Y1, ~39% Y2, ~31% Y3 annually (equivalent to 5% monthly Y1, declining to 3% by Y3).*
 
 #### Revenue & Cost Model (Annual)
 
 | Line Item | Year 1 | Year 2 | Year 3 |
 |---|---|---|---|
-| **Avg Active Restaurants** | 25 | 100 | 226 |
-| **Gross Revenue** | €29,700 | €118,800 | €268,488 |
-| AI variable costs | €3 | €12 | €27 |
-| Infrastructure | €600 | €1,500 | €1,800 |
-| Customer success time (0.5h/restaurant/month @ €25/hr) | €3,750 | €15,000 | €33,900 |
-| **Total COGS** | **€4,353** | **€16,512** | **€35,727** |
-| **Gross Profit** | €25,347 | €102,288 | €232,761 |
-| **Gross Margin** | **85.3%** | **86.1%** | **86.7%** |
+| **Avg Active Restaurants** | 10 | 71 | 192 |
+| **Gross Revenue** | €11,880 | €84,348 | €228,096 |
+| AI variable costs | €1 | €3 | €9 |
+| Infrastructure | €600 | €3,600 | €3,600 |
+| Customer success time (0.5h/restaurant/month @ €25/hr) | €1,500 | €10,650 | €28,800 |
+| **Total COGS** | **€2,101** | **€14,253** | **€32,409** |
+| **Gross Profit** | €9,779 | €70,095 | €195,687 |
+| **Gross Margin** | **82.3%** | **83.1%** | **85.8%** |
 | S&M (events, outreach, referrals) | €8,000 | €18,000 | €28,000 |
 | R&D (model development) | €5,000 | €8,000 | €12,000 |
 | G&A (legal, accounting, tools) | €3,000 | €5,000 | €6,000 |
 | Founder compensation | €24,000 | €30,000 | €36,000 |
 | **Total OpEx** | €40,000 | €61,000 | €82,000 |
-| **EBITDA** | **-€14,653** | **€41,288** | **€150,761** |
-| **EBITDA Margin** | — | 34.8% | 56.2% |
+| **EBITDA** | **-€30,221** | **€9,095** | **€113,687** |
+| **EBITDA Margin** | — | 10.8% | 49.8% |
 
 #### Break-Even Analysis
 
@@ -382,9 +389,9 @@ Monthly fixed costs (Year 1):
 | G&A (amortised) | €250 |
 | **Total fixed costs** | **€3,384** |
 
-Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − €0.01 (AI) = €86.49**
+Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − €0.006 (AI) = €86.49**
 
-**Break-even: ⌈3,384 / 86.49⌉ = ~39 restaurants**, achieved in **Month 10 of Year 2** under base-case projections.
+**Break-even: ⌈3,384 / 86.50⌉ = ~39 restaurants** — the active count at which monthly revenues cover Year 1-level fixed costs. Under base-case projections the restaurant count crosses 39 in Month 3 of Year 2, but Year 2's aggregate EBITDA of €9,095 only partially offsets the Year 1 loss of €30,221. Full **cumulative cash-flow break-even** — the month at which the business has recovered all prior losses — is reached in **Month 4 of Year 3**.
 
 #### Scenario Analysis
 
@@ -393,17 +400,12 @@ Monthly contribution margin per restaurant: **€99 − €12.50 (CS time) − �
 | Bear (50% miss) | 10 | €5,940 | €114,048 |
 | **Base** | **20** | **€11,880** | **€228,096** |
 | Bull (150% of plan) | 30 | €17,820 | €342,144 |
-| Pan-EU expansion (Y4+) | — | — | €1M+ ARR |
 
 Even in the bear case, the business reaches break-even in Year 2 and generates a healthy Y3 margin. The model is profitable at scale in all three scenarios, reflecting the capital efficiency of near-zero marginal AI costs and a conservative churn assumption of 5% monthly in Year 1.
 
-Pan-European expansion (France, Italy, Netherlands) is modelled as a Year 4+ event, contingent on Iberian proof-of-concept; the ~150,000 addressable POS-connected independents in those markets represent a 10x revenue opportunity on the same infrastructure.
-
 ### 8.4 Path to Profitability Narrative
 
-Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 60% rate, generating real revenue from Month 3. Year 1 ends at a planned operating loss of ~€19K — covered by initial personal capital — as founder compensation and customer success time are fully accounted for. By Month 10 of Year 2 (~39 restaurants), the business reaches cash-flow break-even. By Year 3, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive** from the end of Year 2.
-
-€228K ARR at Year 3 is intentionally scoped to the Iberian proof-of-concept phase. France, Italy, and the Netherlands represent a combined SAM of ~150,000 POS-connected independents at the same price point — a 10x revenue opportunity on infrastructure that scales at near-zero marginal cost. Multi-site pricing (€199–249/month) further compresses the path to €1M ARR once the cross-restaurant flywheel has real data behind it. The Year 3 figures are the foundation, not the destination.
+Mise requires no external funding to reach profitability. The 60-day free pilot converts at an assumed 45% rate, generating real revenue from Month 3. Year 1 ends at a planned operating loss of ~€30K — covered by initial personal capital — as founder compensation and customer success time are fully accounted for, and churn is modelled conservatively at 5% monthly. Year 2 generates €9K positive EBITDA, making the business operationally profitable on a monthly basis by mid-Year 2, but its aggregate surplus is insufficient to fully offset the Year 1 loss. Cumulative cash-flow break-even — the month at which total earnings from inception turn positive — is reached in **Month 4 of Year 3**. By Year 3 end, retained earnings fund product development and the first Pan-European expansion partnerships. The business is designed to be **default alive** from the end of Year 2.
 
 ---
 
@@ -413,7 +415,7 @@ Mise requires no external funding to reach profitability. The 60-day free pilot 
 |---|---|---|---|
 | POS API access restricted by provider | Medium | High | Build CSV fallback; negotiate integration partnerships proactively |
 | Restaurant churn higher than modelled | Medium | Medium | Monitor NPS weekly; offer quarterly accuracy reviews; build referral habit early |
-| LLM (Claude) cost increase | Low | Low | AI cost is <0.01% of revenue; switch to Haiku or open-source Llama 3 if needed |
+| LLM (GPT-4o-mini) cost increase | Low | Low | AI cost is <0.01% of revenue; switch to GPT-4.1-mini or open-source Llama 3 if needed |
 | Competitor (Square) builds native forecast | Low | High | Cross-restaurant data flywheel is 2–3 years ahead; accelerate data acquisition |
 | Model accuracy insufficient for trust | Low | High | Show accuracy tracker in dashboard from Week 1; money-back guarantee removes risk for owner |
 | Food safety / liability for bad forecast | Low | Medium | Clear T&Cs: Mise is advisory only; owner retains all purchasing decisions |
@@ -427,7 +429,7 @@ Mise is built on top of large language models and ML forecasting systems. This s
 
 ### 10.1 Hallucination Risk
 
-Claude is used exclusively to generate the explanatory text layer of the weekly brief — it never produces the numeric forecast. The authoritative recommendation (item, quantity, direction) comes from the LightGBM model. If Claude's natural-language explanation contradicts the underlying numeric output by more than 10%, the text is discarded and a deterministic template fallback is used instead. This design ensures that a hallucinated explanation cannot lead to a harmful ordering decision.
+GPT-4o-mini is used exclusively to generate the explanatory text layer of the weekly brief — it never produces the numeric forecast. The authoritative recommendation (item, quantity, direction) comes from the LightGBM model. If GPT-4o-mini's natural-language explanation directionally contradicts the underlying numeric output — for example, suggesting reduction for an item the model has forecast to increase — the text is discarded and a deterministic template fallback is used instead. This design ensures that a hallucinated explanation cannot lead to a harmful ordering decision.
 
 ### 10.2 Overreliance
 
@@ -435,7 +437,7 @@ A core UX principle of Mise is that the weekly brief is explicitly framed as a r
 
 ### 10.3 Bias and Fairness
 
-LightGBM models trained on historical sales data can perpetuate past patterns, including those caused by temporary disruptions (e.g., a supplier issue, a one-off event that skewed demand). The threshold-based anomaly detector (Section 5.2 ③) filters out statistically anomalous training points before they enter the model. Additionally, the Bayesian cold-start module draws priors from a cuisine-type and neighbourhood cluster, not from a global average, reducing the risk of biased predictions for restaurants with atypical demand profiles.
+LightGBM models trained on historical sales data can perpetuate past patterns, including those caused by temporary disruptions (e.g., a supplier issue, a one-off event that skewed demand). The threshold-based anomaly detector (Section 5.2 ③) filters out statistically anomalous training points before they enter the model. Additionally, the Bayesian cold-start module draws priors from a cuisine-type and estimated weekly volume cluster, not from a global average, reducing the risk of biased predictions for restaurants with atypical demand profiles.
 
 ### 10.4 Privacy and Data Minimisation
 
@@ -447,7 +449,7 @@ The cross-restaurant Bayesian prior is a statistical aggregate — no individual
 
 ---
 
-
+## Appendix A — GenAI Transparency Log
 
 *This appendix documents all AI tool usage during the ideation, writing, and development of this business plan, in compliance with the course's academic integrity and GenAI disclosure requirements.*
 
@@ -458,9 +460,9 @@ The cross-restaurant Bayesian prior is a statistical aggregate — no individual
 | Tool | Version | Usage Phase | Role |
 |---|---|---|---|
 | **Claude (Anthropic)** | claude-sonnet-4-6 | Ideation, writing, editing | Primary authoring assistant |
-| **Claude (Anthropic)** | claude-haiku-4-5 | Financial modelling | Arithmetic checking and scenario generation |
+| **GPT-4o-mini (OpenAI)** | gpt-4o-mini | Recommendation text generation (product component) | Weekly brief natural-language generation |
 
-No other AI tools (ChatGPT, Gemini, Copilot, etc.) were used in the preparation of this document.
+No other AI tools were used in the *preparation of this document*. Note: GPT-4o-mini is used as a component of the Mise product itself (recommendation text generation) — this is distinct from its use as a writing or analysis assistant during document preparation.
 
 ---
 
@@ -509,9 +511,9 @@ No other AI tools (ChatGPT, Gemini, Copilot, etc.) were used in the preparation 
 **Claude's contribution:** Suggested including LTV:CAC ratio, payback period, and a break-even restaurant count as the most legible metrics for a mixed audience. Suggested framing the AI cost breakdown by token type (input/output separately) as this would be assessed by the AI judge.
 
 **Representative prompt excerpt (arithmetic check):**
-> *"Check my maths: Average active restaurants Year 1 = 25, ARPU €99, annual revenue = €29,700. Churn applied at 5% annually to 55 new additions gives 6 churned and 49 active at year end. Does this reconcile?"*
+> *"Check my maths: Average active restaurants Year 1 = 10 (mid-year average of 0→20 ramp), ARPU €99, annual revenue = €11,880. New additions = 55 outreach × 45% conversion = 25, churn at 5% monthly on growing base gives ~5 churned, 20 active at year end. Does this reconcile?"*
 
-**Claude's contribution:** Confirmed arithmetic and flagged that the "average active" figure should use mid-year rather than year-end count for revenue calculation. The human author applied this correction.
+**Claude's contribution:** Confirmed arithmetic and flagged that the "average active" figure should use mid-year rather than year-end count for revenue calculation, and that monthly churn compounds differently from annual churn. The human author applied this correction, reducing the Year 1 revenue figure from an earlier draft estimate.
 
 **Human contribution:** All assumptions (price, churn rates, CAC, scenario parameters) were set by the human author based on analogous B2B SaaS benchmarks and the team's commercial judgement.
 
@@ -535,30 +537,30 @@ No other AI tools (ChatGPT, Gemini, Copilot, etc.) were used in the preparation 
 
 ### A.6 Prototype / Code Assistance (Separate from Business Plan)
 
-**Date:** Week 2–3 (Dariusch Jose Hassunizadeh and Oliver Mourant's work — documented here for completeness)
+**Date:** Week 2–3 
 
 **Tool:** Claude (Sonnet)
 
-**What was done:** Claude was used to generate the synthetic dataset (12 months of daily sales data for a 40-seat Italian restaurant), scaffold the LightGBM training pipeline, and generate FastAPI boilerplate.
+**What was done:** Claude Code was used to build the complete application stack — the LightGBM training pipeline (train.py), the FastAPI backend (main.py), and the full Streamlit frontend (app.py), including the four-screen UX, Plotly visualisations, platform overview, accuracy tracker, and API fallback logic. All product and architectural decisions were made by the team and translated into prompts; Claude Code implemented those decisions iteratively, with the team reviewing, testing, and revising each output.
 
-**Representative prompt excerpt (data generation):**
-> *"Generate 12 months of daily sales data for a fictional 40-seat Italian restaurant in Lisbon. Include 12 menu items. Build in seasonal variation, a weekly pattern (busy Friday/Saturday), rain sensitivity for fish dishes, and two local event spikes (Festas de Lisboa in June, New Year's Eve). Output as a CSV with columns: date, item_name, units_sold, rainfall_mm, local_event_flag."*
+**Representative prompt excerpt (frontend):**
+> *"Build a Streamlit dashboard for a restaurant demand forecasting app called Mise. Four screens: a platform overview with simulated restaurants and total waste saved, a restaurant setup screen where the user picks cuisine and seating capacity, a forecast screen that runs the LightGBM model and shows weekly predictions per menu item, and an accuracy tracker comparing our model MAPE against a naive baseline. Keep the colour scheme green-toned, clean and minimal."*
 
-**Claude's contribution:** Produced a complete Python script that generated the synthetic CSV. The team reviewed the output for plausibility (demand patterns, seasonal shape) and adjusted parameters where the simulated data felt unrealistic.
+**Claude's contribution:** Generated the complete application stack iteratively across all three files — training pipeline, FastAPI backend, and Streamlit frontend — based on team-specified requirements and architectural direction.
 
-**Human contribution:** All model architecture decisions (LightGBM over XGBoost, Bayesian cold-start approach, Isolation Forest for anomaly detection) were made by the team. Claude generated boilerplate; the ML design was human-led.
+**Human contribution:** All product decisions — the four-screen flow, the platform overview concept, the cuisine-to-menu mapping logic, the accuracy tracker framing, the colour scheme, the demo narrative — originated with the team. Claude Code executed; the team directed, reviewed, and revised every iteration. All model architecture decisions (LightGBM over XGBoost, Bayesian cold-start approach, threshold-based anomaly detection) were made by the team. Claude generated boilerplate; the ML design was human-led.
 
 ---
 
 ### A.7 Summary Assessment
 
-Claude was used as a high-quality thinking partner, editor, and arithmetic checker throughout this project. It did not originate the business concept, the pricing strategy, the target market selection, the ML architecture, or the financial assumptions. Every Claude interaction was initiated by a human prompt with a specific question; Claude's responses were critically reviewed and frequently revised or rejected.
+Claude was used as a high-quality thinking partner, editor, arithmetic checker, and primary development tool throughout this project. It did not originate the business concept, the pricing strategy, the target market selection, the ML architecture, or the financial assumptions — and it did not make product or UX decisions. Every Claude interaction was initiated by a human prompt with a specific question or specification; Claude's responses and code outputs were critically reviewed, tested, and frequently revised or rejected.
 
 The team believes this represents responsible, transparent AI augmentation — consistent with how a junior analyst or research assistant might be used in a professional setting, with the human retaining full intellectual ownership of the output.
 
 ---
 
-*Document prepared by Riccardo Bertolini — Business Plan Lead*  
+
 *Project: Mise — AI Demand Forecasting for Independent Restaurants*  
 *Course: 2758-T4 Advanced Topics in Machine Learning, Nova SBE*  
 *Date: May 2026*
