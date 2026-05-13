@@ -289,6 +289,12 @@ The AI Judge is reportedly critical of wrapper startups. Mise is not a wrapper. 
 **① Proprietary cross-restaurant dataset**
 Every restaurant that joins Mise enriches the Bayesian priors for every future restaurant in the same cluster. This data flywheel is not replicable from a cold start. OpenAI has no restaurant sales data. Square has it but lacks the ML layer and the forecasting product. Mise builds the proprietary dataset from day one.
 
+In Year 1, the value proposition rests on per-restaurant LightGBM forecasting 
+trained on that restaurant's own history alongside weather and event signals — not 
+on cross-restaurant data. The Bayesian prior becomes a meaningful differentiator 
+from Year 2 onward, once sufficient restaurants per cuisine cluster make the 
+aggregate statistically robust.
+
 **② POS workflow lock-in**
 Once a restaurant owner's Monday morning revolves around the Mise brief, switching costs are behavioural, not just contractual. The longer they use it, the more the model personalises to their specific demand patterns — reinforcing lock-in.
 
