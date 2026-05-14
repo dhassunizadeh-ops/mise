@@ -575,7 +575,6 @@ if screen == "🏠 Restaurant Setup":
 
         c1, c2 = st.columns(2)
         with c1:
-            upcoming_events = st.toggle("Local event this weekend?", value=False)
             is_holiday_week = st.toggle("Holiday week?", value=False)
         with c2:
             is_tourist_season = st.toggle("Tourist season?", value=False)
@@ -583,19 +582,6 @@ if screen == "🏠 Restaurant Setup":
             "Any notes about this week?",
             placeholder="e.g. 'We have a private event Tuesday, ignore those numbers' or 'Staff shortage Friday'",
             height=80
-        )
-
-        st.subheader("Forecast Month")
-        current_month = date.today().month
-        forecast_month_name = st.selectbox(
-            "Which month are you forecasting for?",
-            options=MONTH_NAMES,
-            index=current_month - 1,
-        )
-        forecast_month_idx = MONTH_NAMES.index(forecast_month_name) + 1
-        st.caption(
-            f"Week ~{MONTH_TO_WEEK[forecast_month_idx]} of year  "
-            + ("(current month)" if forecast_month_idx == current_month else "(future scenario)")
         )
 
     with col2:
@@ -621,11 +607,10 @@ if screen == "🏠 Restaurant Setup":
             "cuisine":           cuisine_type,
             "location":          location,
             "owner_notes":       owner_notes,
+            "upcoming_events":   False,  # handled automatically by PredictHQ
             "seating_capacity":  seating_capacity,
-            "upcoming_events":   upcoming_events,
             "is_holiday_week":   is_holiday_week,
             "is_tourist_season": is_tourist_season,
-            "forecast_month":    forecast_month_idx,
         }
         st.session_state.form_data = payload
 
@@ -707,103 +692,7 @@ elif screen == "📊 Weekly Recommendations":
     """, unsafe_allow_html=True)
 
     # ── SECTION 1: SCENARIO EXPLORER ────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("Scenario Explorer — How conditions affect demand")
-
     
-
-    st.caption("Click to instantly compare seasonal extremes — watch how weather and season shift demand")
-
-    _jan_recs = st.session_state._scenario_jan.get("recommendations", [])
-    _aug_recs = st.session_state._scenario_aug.get("recommendations", [])
-    _items_s  = [r["menu_item"] for r in _jan_recs]
-    _jan_vals = [r["predicted_demand"] for r in _jan_recs]
-    _aug_dict = {r["menu_item"]: r["predicted_demand"] for r in _aug_recs}
-    _aug_vals = [_aug_dict.get(it, 0) for it in _items_s]
-
-    _jan_without = st.session_state._scenario_jan.get("without_mise_waste", sum(_jan_vals) * 0.08 * 2.50)
-    _aug_without = st.session_state._scenario_aug.get("without_mise_waste", sum(_aug_vals) * 0.08 * 2.50)
-    _jan_saved   = st.session_state._scenario_jan.get("without_mise_waste", 0) - \
-                   st.session_state._scenario_jan.get("with_mise_waste", 0)
-    _aug_saved   = st.session_state._scenario_aug.get("without_mise_waste", 0) - \
-                   st.session_state._scenario_aug.get("with_mise_waste", 0)
-
-    _sc_fig = go.Figure(
-        data=[go.Bar(
-            x=_items_s, y=_jan_vals, name="Rainy January",
-            marker_color="#1565C0",
-            text=_jan_vals, textposition="outside",
-            hovertemplate="<b>%{x}</b><br>%{y} units<extra>Rainy January</extra>",
-        )],
-        frames=[
-            go.Frame(
-                data=[go.Bar(
-                    x=_items_s, y=_jan_vals, marker_color="#1565C0",
-                    text=_jan_vals, textposition="outside",
-                    hovertemplate="<b>%{x}</b><br>%{y} units<extra>Rainy January</extra>",
-                )],
-                name="january",
-            ),
-            go.Frame(
-                data=[go.Bar(
-                    x=_items_s, y=_aug_vals, marker_color="#E65100",
-                    text=_aug_vals, textposition="outside",
-                    hovertemplate="<b>%{x}</b><br>%{y} units<extra>August Peak</extra>",
-                )],
-                name="august",
-            ),
-        ],
-    )
-    _sc_fig.update_layout(
-        title=(
-            f"🌧️ Rainy January — without Mise €{_jan_without:.0f}, saved €{_jan_saved:.0f}"
-            f"   |   "
-            f"☀️ August Peak — without Mise €{_aug_without:.0f}, saved €{_aug_saved:.0f}"
-        ),
-        yaxis_title="Weekly Units",
-        plot_bgcolor="white", paper_bgcolor="white",
-        height=480, margin=dict(t=160, b=20),
-        xaxis=dict(tickangle=-20),
-        updatemenus=[{
-            "type": "buttons",
-            "showactive": True,
-            "x": 0.0, "xanchor": "left",
-            "y": 1.55, "yanchor": "top",
-            "direction": "left",
-            "buttons": [
-                {
-                    "label": "🌧️ Rainy January",
-                    "method": "animate",
-                    "args": [["january"], {
-                        "frame": {"duration": 600, "redraw": True},
-                        "transition": {"duration": 500, "easing": "cubic-in-out"},
-                        "mode": "immediate",
-                    }],
-                },
-                {
-                    "label": "☀️ August Peak",
-                    "method": "animate",
-                    "args": [["august"], {
-                        "frame": {"duration": 600, "redraw": True},
-                        "transition": {"duration": 500, "easing": "cubic-in-out"},
-                        "mode": "immediate",
-                    }],
-                },
-            ],
-            "bgcolor": "#F1F8E9", "bordercolor": MISE_GREEN, "borderwidth": 1,
-            "font": {"color": MISE_GREEN, "size": 12},
-            "pad": {"r": 10, "t": 5, "b": 5},
-        }],
-    )
-    st.plotly_chart(_sc_fig, use_container_width=True)
-
-    st.markdown(
-        f'<p style="color:{MISE_GREEN}; font-weight:600; font-size:1rem; margin:0;">'
-        "Salmon rises +119% from January to August. "
-        "Pasta drops in summer heat. "
-        "The model learned this — we never told it.</p>",
-        unsafe_allow_html=True,
-    )
 
    # ── SECTION 2: THIS WEEK'S FORECAST ─────────────────────────────────────
     st.markdown("---")
@@ -922,6 +811,104 @@ elif screen == "📊 Weekly Recommendations":
             use_container_width=True,
             hide_index=True,
         )
+
+        st.markdown("---")
+    st.subheader("Scenario Explorer — How conditions affect demand")
+
+    
+
+    st.caption("Click to instantly compare seasonal extremes — watch how weather and season shift demand")
+
+    _jan_recs = st.session_state._scenario_jan.get("recommendations", [])
+    _aug_recs = st.session_state._scenario_aug.get("recommendations", [])
+    _items_s  = [r["menu_item"] for r in _jan_recs]
+    _jan_vals = [r["predicted_demand"] for r in _jan_recs]
+    _aug_dict = {r["menu_item"]: r["predicted_demand"] for r in _aug_recs}
+    _aug_vals = [_aug_dict.get(it, 0) for it in _items_s]
+
+    _jan_without = st.session_state._scenario_jan.get("without_mise_waste", sum(_jan_vals) * 0.08 * 2.50)
+    _aug_without = st.session_state._scenario_aug.get("without_mise_waste", sum(_aug_vals) * 0.08 * 2.50)
+    _jan_saved   = st.session_state._scenario_jan.get("without_mise_waste", 0) - \
+                   st.session_state._scenario_jan.get("with_mise_waste", 0)
+    _aug_saved   = st.session_state._scenario_aug.get("without_mise_waste", 0) - \
+                   st.session_state._scenario_aug.get("with_mise_waste", 0)
+
+    _sc_fig = go.Figure(
+        data=[go.Bar(
+            x=_items_s, y=_jan_vals, name="Rainy January",
+            marker_color="#1565C0",
+            text=_jan_vals, textposition="outside",
+            hovertemplate="<b>%{x}</b><br>%{y} units<extra>Rainy January</extra>",
+        )],
+        frames=[
+            go.Frame(
+                data=[go.Bar(
+                    x=_items_s, y=_jan_vals, marker_color="#1565C0",
+                    text=_jan_vals, textposition="outside",
+                    hovertemplate="<b>%{x}</b><br>%{y} units<extra>Rainy January</extra>",
+                )],
+                name="january",
+            ),
+            go.Frame(
+                data=[go.Bar(
+                    x=_items_s, y=_aug_vals, marker_color="#E65100",
+                    text=_aug_vals, textposition="outside",
+                    hovertemplate="<b>%{x}</b><br>%{y} units<extra>August Peak</extra>",
+                )],
+                name="august",
+            ),
+        ],
+    )
+    _sc_fig.update_layout(
+        title=(
+            f"🌧️ Rainy January — without Mise €{_jan_without:.0f}, saved €{_jan_saved:.0f}"
+            f"   |   "
+            f"☀️ August Peak — without Mise €{_aug_without:.0f}, saved €{_aug_saved:.0f}"
+        ),
+        yaxis_title="Weekly Units",
+        plot_bgcolor="white", paper_bgcolor="white",
+        height=480, margin=dict(t=160, b=20),
+        xaxis=dict(tickangle=-20),
+        updatemenus=[{
+            "type": "buttons",
+            "showactive": True,
+            "x": 0.0, "xanchor": "left",
+            "y": 1.55, "yanchor": "top",
+            "direction": "left",
+            "buttons": [
+                {
+                    "label": "🌧️ Rainy January",
+                    "method": "animate",
+                    "args": [["january"], {
+                        "frame": {"duration": 600, "redraw": True},
+                        "transition": {"duration": 500, "easing": "cubic-in-out"},
+                        "mode": "immediate",
+                    }],
+                },
+                {
+                    "label": "☀️ August Peak",
+                    "method": "animate",
+                    "args": [["august"], {
+                        "frame": {"duration": 600, "redraw": True},
+                        "transition": {"duration": 500, "easing": "cubic-in-out"},
+                        "mode": "immediate",
+                    }],
+                },
+            ],
+            "bgcolor": "#F1F8E9", "bordercolor": MISE_GREEN, "borderwidth": 1,
+            "font": {"color": MISE_GREEN, "size": 12},
+            "pad": {"r": 10, "t": 5, "b": 5},
+        }],
+    )
+    st.plotly_chart(_sc_fig, use_container_width=True)
+
+    st.markdown(
+        f'<p style="color:{MISE_GREEN}; font-weight:600; font-size:1rem; margin:0;">'
+        "Salmon rises +119% from January to August. "
+        "Pasta drops in summer heat. "
+        "The model learned this — we never told it.</p>",
+        unsafe_allow_html=True,
+    )
 
 # ---------------------------------------------------------------------------
 # SCREEN 3 — Accuracy Tracker

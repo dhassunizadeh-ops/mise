@@ -372,7 +372,6 @@ def bayesian_update(prior_mean: float, prior_variance: float, observations: list
     ) / (1.0 / prior_variance + n / obs_variance)
     return posterior_mean
 
-
 def build_reasoning(req: ForecastRequest, week_start: date) -> str:
     parts = []
     if req.upcoming_events:
@@ -381,10 +380,7 @@ def build_reasoning(req: ForecastRequest, week_start: date) -> str:
         parts.append("Holiday week")
     if req.is_tourist_season:
         parts.append("Tourist season")
-    if week_start.weekday() >= 5 or (week_start + timedelta(days=5)).weekday() >= 5:
-        parts.append("Weekend in window")
     return ", ".join(parts) if parts else "Normal conditions"
-
 
 def confidence_label(mape: float) -> str:
     if mape < 10:
