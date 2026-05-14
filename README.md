@@ -62,7 +62,7 @@ mise/
 ### 1. Clone and set up environment
 
 ```bash
-git clone https://github.com/your-org/mise.git
+git clone https://github.com/dhassunizadeh-ops/mise.git
 cd mise
 python -m venv .venv
 
