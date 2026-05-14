@@ -1,63 +1,188 @@
-# Mise — AI Demand Forecasting for Independent Restaurants
+# mise
 
-> *"A weekly AI demand forecast for independent restaurants — telling them what to order before they waste money finding out the hard way."*
+> **Order smarter. Waste less.**
 
-Final project for **2758-T4 Advanced Topics in Machine Learning**  
-Nova School of Business and Economics · Masters in Business Analytics · 2026
+Mise is a weekly AI-powered demand forecasting tool for independent restaurants. It analyses historical sales alongside weather and local-event signals and delivers a plain-English Monday morning ordering brief — telling the owner what to buy before they waste money finding out the hard way.
 
 ---
 
-## The Problem
+## What it does
 
-Independent restaurants run on 3–5% margins and make inventory decisions by gut feel. A 40-seat bistro wastes **€600–2,000/month** in spoiled food — not because owners are careless, but because they have no tool that tells them what demand will look like next week.
+Every Monday morning, the restaurant owner opens the Mise dashboard and sees:
 
-## The Solution
+- **Order recommendations** — item, predicted weekly demand, recommended quantity, % change vs last week
+- **Plain-English reasoning** — "Pasta up 25% — Festas de Lisboa this Saturday. Salmon down 15% — heavy rain forecast Friday–Sunday."
+- **Accuracy tracker** — rolling MAPE vs naïve baseline, so trust builds over time
+- **Anomaly alerts** — flags unusual demand drops before they corrupt the next forecast
 
-Mise connects to a restaurant's POS system (Square, Lightspeed), analyses sales history alongside weather and local event signals, and delivers a plain-English Monday-morning ordering brief:
-
-> *"Order 15% less salmon — rain forecast Friday–Sunday. Order 20% more pasta — Festas de Lisboa this Saturday."*
-
-One brief. One decision. Less waste.
-
-## Repository Structure
-
-```
-├── BUSINESS_PLAN.md          # Deliverable 1 — Business plan, GTM, financials, GenAI log
-├── data/                     # Synthetic dataset (generated Week 1)
-│   └── da_mario_sales.csv
-├── models/                   # ML components
-│   ├── forecasting/          # LightGBM demand forecasting model
-│   ├── cold_start/           # Bayesian cold-start module
-│   └── anomaly/              # Isolation Forest anomaly detection
-├── backend/                  # FastAPI backend + Claude API integration
-│   └── main.py
-├── frontend/                 # Streamlit dashboard
-│   └── app.py
-└── notebooks/                # EDA, model training, evaluation
-```
+---
 
 ## ML Architecture
 
-| Component | Method | Purpose |
-|---|---|---|
-| Demand forecasting | LightGBM | Predict next-week item demand |
-| Cold-start | Bayesian clustering | Credible prior for new restaurants |
-| Anomaly detection | Isolation Forest | Flag broken signals |
-| Recommendation text | Claude API | Plain-English weekly brief |
+### ① LightGBM Demand Forecasting
+One model per menu item trained on a 730-day dataset. Features: day-of-week, week-of-year, Portuguese public holidays, rainfall (OpenMeteo), local events (PredictHQ), and lagged demand at t-7, t-14, t-28.
 
-## Team
+Chosen over ARIMA and Prophet for native handling of mixed feature spaces, robustness to non-stationary demand, and sub-second CPU inference. Chronological 60/20/20 train/validation/test split — no data leakage.
 
-| Person | Role |
-|---|---|
-| Person 1 | Business plan, GTM strategy, financial model, pitch |
-| Person 2 | Synthetic data, LightGBM model, Bayesian cold-start, anomaly detection |
-| Person 3 | FastAPI backend, POS simulation, Claude API integration |
-| Person 4 | Streamlit frontend, dashboard UI, demo flow |
+**Result: LightGBM beats the naïve baseline by 47.7% on average MAPE.**
 
-## GenAI Transparency
+### ② Bayesian Cold-Start
+New restaurants have no history. On onboarding, the restaurant is assigned to one of five clusters (cuisine type × seating capacity × estimated volume) via KMeans. A Gaussian prior from the cluster's aggregate demand distribution initialises the forecast. As real observations accumulate, the posterior shifts toward the restaurant's own mean via conjugate updating — fully personalised after 8–12 weeks.
 
-All AI tool usage is fully documented in **[Appendix A of the Business Plan](BUSINESS_PLAN.md#appendix-a--genai-transparency-log)**, in compliance with the course's academic integrity requirements.
+### ③ Anomaly Detection
+Rolling 28-day mean ± 2.5σ per item. Signals outside bounds are flagged in the dashboard and excluded from the next forecast cycle — preventing the model from learning from POS outages or atypical closures.
+
+### GPT-4o-mini Text Layer
+Generates plain-English explanations for the weekly brief. Never produces the numeric forecast — that always comes from LightGBM. If the AI explanation directionally contradicts the model output, a deterministic template fallback fires automatically. Strip the LLM and the product still works.
 
 ---
 
-*Nova SBE · 2026*
+## Project Structure
+
+```
+mise/
+├── backend/
+│   └── main.py              # FastAPI backend — forecast endpoint, Bayesian cold-start, GPT-4o-mini
+├── frontend/
+│   └── app.py               # Streamlit dashboard — four-screen UX
+├── ml/
+│   ├── train.py             # LightGBM training pipeline + KMeans cold-start
+│   └── model.pkl            # Trained artifact (generated by train.py)
+├── data/
+│   └── sales_history.csv    # 730-day synthetic training dataset
+├── run_backend.bat          # Windows: start FastAPI on port 3001
+├── run_frontend.bat         # Windows: start Streamlit on port 8501
+└── requirements.txt
+```
+
+---
+
+## Quickstart
+
+### 1. Clone and set up environment
+
+```bash
+git clone https://github.com/your-org/mise.git
+cd mise
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+### 2. Configure environment variables
+
+Create a `.env` file in the project root:
+
+```
+OPEN_AI_KEY=your_openai_api_key
+MISE_API_KEY=mise-dev-key
+PREDICTHQ_API_KEY=your_predicthq_api_key   # optional
+```
+
+> The app runs without PredictHQ — local event toggling is available manually in the UI. The numeric forecast works without OpenAI; only the plain-English layer requires it.
+
+### 3. Train the model
+
+```bash
+python ml/train.py
+```
+
+Reads `data/sales_history.csv`, trains one LightGBM model per menu item, fits the KMeans cold-start model, and saves `ml/model.pkl`. Takes ~30 seconds on a standard laptop.
+
+Expected output:
+
+```
+=================================================================
+MISE — ML Training Results (LightGBM, 730-day dataset)
+=================================================================
+Menu Item                 LightGBM MAPE    Naive MAPE   Improvement
+-----------------------------------------------------------------
+Bruschetta                        9.1%        18.5%       +50.8%
+Caesar Salad                      8.7%        17.2%       +49.4%
+...
+-----------------------------------------------------------------
+AVERAGE                           9.7%        18.5%       +47.7%
+=================================================================
+```
+
+### 4. Start the backend
+
+**Windows:**
+```bash
+run_backend.bat
+```
+
+**macOS / Linux:**
+```bash
+.venv/bin/python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 3001
+```
+
+### 5. Start the frontend
+
+**Windows:**
+```bash
+run_frontend.bat
+```
+
+**macOS / Linux:**
+```bash
+.venv/bin/streamlit run frontend/app.py --server.port 8501
+```
+
+Open `http://localhost:8501`. If the backend is not running, the app falls back to loading `ml/model.pkl` directly — the demo works either way.
+
+---
+
+## API Reference
+
+### `POST /forecast`
+
+Header: `X-API-Key: mise-dev-key`
+
+**Request:**
+```json
+{
+  "restaurant_name": "Da Mario",
+  "cuisine": "Italian",
+  "seating_capacity": 60,
+  "upcoming_events": false,
+  "is_holiday_week": false,
+  "is_tourist_season": false,
+  "forecast_month": null,
+  "owner_notes": ""
+}
+```
+
+**Response:**
+```json
+{
+  "restaurant": "Da Mario",
+  "week": "May 19 - May 25, 2026",
+  "recommendations": [
+    {
+      "menu_item": "Grilled Salmon",
+      "predicted_demand": 42,
+      "recommended_order": 47,
+      "vs_last_week": "-12%",
+      "confidence": "high",
+      "flag": false,
+      "daily_predictions": [6, 5, 6, 7, 6, 7, 5]
+    }
+  ],
+  "total_estimated_waste_saved": "€38",
+  "model_accuracy": "MAPE: 9.7%",
+  "ai_insights": "Rain forecast through Wednesday will suppress covers..."
+}
+```
+
+Supported cuisines: `Italian` · `Portuguese` · `Mediterranean` · `Spanish` · `French`
+
+---
+
+*mise · order smarter. waste less.*
